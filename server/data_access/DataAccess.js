@@ -65,7 +65,7 @@ export class DB {
                 this.con.query(str, [username], function (err, rows, fields) {
                     if (!err) {
                         if (rows.length > 0) {
-                            resolve(new User(rows[0].id, rows[0].username, rows[0].email, rows[0].password, rows[0].create_time));
+                            resolve(new User(rows[0].user_id, rows[0].username, rows[0].email, rows[0].password, rows[0].create_time));
                         } else {
                             // no user found
                             reject("User does not exist");
