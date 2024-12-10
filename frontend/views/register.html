@@ -6,5 +6,17 @@
         <title>Register</title>
     </head>
     <body>
+        <h2>Register</h2>
+        <p class="error-message" id="register-error"></p>
+        <form id="register" name="register" action="/register" method="post">
+            <label for="username">Username:</label><br>
+            <input type="text" id="username" name="username" /><br>
+            <label for="email">Email:</label><br>
+            <input type="email" name="email" id="email"><br>
+            <label for="password">Password:</label><br>
+            <input type="text" id="password" name="password" />
+            <br>
+            <input type="submit" value="Submit" />
+        </form>
     </body>
 </html>

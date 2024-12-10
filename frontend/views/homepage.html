@@ -20,7 +20,7 @@
             #playerList > li:nth-child(odd) { background: #efefef; }
       
             #message-container { margin-left: .5rem; padding: 0; width: 70%; text-align: center ; border-left: black solid 3px; position: fixed; right: 0; top: 0; bottom: 0; }
-            #messages { list-style-type: none; margin: 0; padding: 0;  border: black solid 2px; text-align: left; }
+            #messages { list-style-type: none; margin: 0; padding: 0;  border: black solid 2px; text-align: left; max-height: 90vh; /* Adjust height as needed */ overflow-y: auto; /* Enable vertical scrolling */ }
             #messages > li { padding: 0.5rem 1rem; }
             #messages > li:nth-child(odd) { background: #efefef; }
 
@@ -117,7 +117,7 @@
                 var item = document.createElement('li');
                 item.textContent = msg;
                 messages.appendChild(item);
-                window.scrollTo(0, document.body.scrollHeight);
+                messages.scrollTop = messages.scrollHeight;
             });
 
             socket.on('user list update', function() {

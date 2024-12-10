@@ -12,10 +12,12 @@ import bodyParser from 'body-parser'
 import http from 'http';
 import {Server} from 'socket.io';
 
+import bcrypt from 'bcrypt'
+
 
 //Remove later TODO
 import {DB} from './server/data_access/DataAccess.js';
-//import {User} from './server/buisseness/User.js';
+//import {User} from './server/business/User.js';
 
 const app = express();
 
@@ -71,7 +73,36 @@ app.get('/', (req,res) => {
     res.status(200).sendFile(__dirname + '/frontend/views/login.html');
 });
 
-//need get login route TODO
+app.get('/register', (req, res) => {
+    // need custom-token nonce  TODO
+    res.status(200).sendFile(__dirname + '/frontend/views/register.html');
+});
+
+app.post('/register', async (req,res) => {
+    //need to validate and sanitize
+
+    const username = req.body.username;
+    const password = req.body.password;
+    const email = req.body.email;
+
+    const db = new DB();
+
+    var userExist = null;
+    //check to make sure user name does not exist in DB
+    var user = await db.getUserByUsername(username).catch(error => { console.error('error in getUserByUsername:', error); });
+
+    if (user) { return res.status(409).send(`<h2>Username already in use.</h2><a href="/register">Try Again</a>`); }
+
+    const hashedPass  = await bcrypt.hash(password, 10);
+
+    var createdUserId = await db.CreateUser(username, email, hashedPass)
+        .catch(error => {
+            console.error('error when Creating User: ', error);
+        });
+
+    if (createdUserId) { res.status(201).redirect('/'); }
+    else { res.status(500).redirect('/register'); }
+});
 
 app.post('/login', (req, res) => {
     const username = req.body.username;
@@ -271,6 +302,8 @@ io.on('connection', (socket) => {
     socket.on('accept', (challengerSocketId) => {
         socket.to(challengerSocketId).emit('accept', {challengerSocketId: challengerSocketId, opponentSocketId: socket.id});
     }); 
+
+    //need reject
 
     socket.on('chat message', (msg) => {
         console.log(`${socket.request.session.user.username} sent a message to room id: `, socket.request.session.room_id);

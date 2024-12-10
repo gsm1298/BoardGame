@@ -68,7 +68,7 @@ export class DB {
                             resolve(new User(rows[0].user_id, rows[0].username, rows[0].email, rows[0].password, rows[0].create_time));
                         } else {
                             // no user found
-                            reject("User does not exist");
+                            resolve(null);
                         }
                     } else {
                         reject(err);
@@ -127,6 +127,31 @@ export class DB {
     }
 
     //Creates
+
+    /**
+     * Creates a user
+     * @param {String} username - the username to be entered into the db
+     * @param {String} email - the email linked to the account
+     * @param {String} hasedPass - the hased password for the account
+     * @returns - returns the inserted id or false if it does not succeed
+     */
+    CreateUser(username, email, hashedPass) {
+        return new Promise((resolve, reject) => {
+            try {
+                var str = `INSERT INTO users (username, email, password) VALUES(?, ?, ?)`;
+                this.con.query(str, [username, email, hashedPass], function (err, rows, fields) {
+                    if (!err) {
+                        resolve(rows.insertId);
+                    } else {
+                        resolve(false);
+                    }
+                });
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
 
     /**
      * Creates a gameroom
