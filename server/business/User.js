@@ -1,4 +1,3 @@
-import {DB} from '../data_access/DataAccess.js';
 import bcrypt from 'bcrypt';
 /**
  * @Class A user

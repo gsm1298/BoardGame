@@ -125,4 +125,29 @@ export class DB {
             }
         });
     }
+
+    //Creates
+
+    /**
+     * Creates a gameroom
+     * @param {int} userId - the users id
+     * @param {int} orgId - organization id
+     * @returns - returns the inserted id or false if it does not succeed
+     */
+    CreateGameRoom() {
+        return new Promise((resolve, reject) => {
+            try {
+                var str = `INSERT INTO gamerooms values()`;
+                this.con.query(str, function (err, rows, fields) {
+                    if (!err) {
+                        resolve(rows.insertId);
+                    } else {
+                        resolve(false);
+                    }
+                });
+            } catch (error) {
+                resolve(false);
+            }
+        });
+    }
 }

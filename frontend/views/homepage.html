@@ -7,37 +7,103 @@
         <style>
             body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
       
-            #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
+            #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0;  display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); width: inherit; }
             #input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
             #input:focus { outline: none; }
             #form > button { background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
+
+            #content-container { display: flex; flex-direction: row; }
+
+            #player-container { margin: 0; padding: 0; width: 30%; text-align: center; }
+            #playerList{ list-style-type: none; margin: 0; padding: 0; text-align: left; }
+            #playerList > li { padding: 0.5rem 1rem; border: black solid 2px; cursor: pointer; }
+            #playerList > li:nth-child(odd) { background: #efefef; }
       
-            #messages { list-style-type: none; margin: 0; padding: 0; }
+            #message-container { margin-left: .5rem; padding: 0; width: 70%; text-align: center ; border-left: black solid 3px; position: fixed; right: 0; top: 0; bottom: 0; }
+            #messages { list-style-type: none; margin: 0; padding: 0;  border: black solid 2px; text-align: left; }
             #messages > li { padding: 0.5rem 1rem; }
             #messages > li:nth-child(odd) { background: #efefef; }
+
+            #challenge-popup { 
+                display: none; /* Hidden by default */
+                position: fixed; /* Stay in place */
+                z-index: 1; /* Sit on top */
+                padding-top: 100px; /* Location of the box */
+                left: 0;
+                top: 0;
+                width: 100%; /* Full width */
+                height: 100%; /* Full height */
+                overflow: auto; /* Enable scroll if needed */
+            }
+
+            #challenge-popup > div {
+                margin: auto;
+                padding: 20px;
+                border: 1px solid #888;
+                width: 80%;
+                background-color: lightgray;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
           </style>
     </head>
     <body>
-        <ul id="messages"></ul>
-        <form id="form" action="">
-            <input id="input" autocomplete="off" /><button>Send</button>
-        </form>
-        <form id="test"><button>Test Game Room</button></form>
+        <div id="content-container">
+            <div id="player-container">
+                <h3>Player List</h3>
+                <ul id="playerList"></ul>
+            </div>
+            <div id="message-container">
+                <h3>Chat</h3>
+                <ul id="messages"></ul>
+                <form id="form" action="">
+                    <input id="input" autocomplete="off" /><button>Send</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="challenge-popup">
+            <div>
+                <h3>Challenged</h3>
+                <p>You Have been Challenged by: <span></span></p>
+                <div><button id="acceptBtn" type="button">Accept</button><button id="declineBtn" type="button">Decline</button></div>
+            </div>
+            <input type="hidden" id="id">
+        </div>
+
         <script src="/socket.io/socket.io.js"></script>
         <script>
             var socket = io.connect();
-            socket.emit('joinRoom', 0);
+            socket.emit('joinRoom', -1);
+
+            // make the player list
+            var playerList = document.getElementById('playerList');
+
+            fetch('/getUsers')
+                .then(res => res.json())
+                .then(data => {
+                    for(var x = 0; x < data.playerList.length; x++) {
+                        const player = data.playerList[x];
+                        //console.log(player);
+                        var el = document.createElement('li');
+                        el.textContent = player.clientName;
+                        el.dataset = player.socketID;
+                        el.addEventListener('click', function(e) {
+                            socket.emit('challenge', player.socketID)
+                        });
+                        playerList.appendChild(el);
+                    }
+                });
 
             var messages = document.getElementById('messages');
             var form = document.getElementById('form');
             var input = document.getElementById('input');
 
-            var testCreateGameRoom = document.getElementById('test');
-
-            testCreateGameRoom.addEventListener('click', function(e) {
-                e.preventDefault();
-                window.location='/gameroom';
-            });
+            //testCreateGameRoom.addEventListener('click', async function(e) {
+                //e.preventDefault();
+                // window.location='/gameroom';
+            //});
 
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
@@ -52,6 +118,71 @@
                 item.textContent = msg;
                 messages.appendChild(item);
                 window.scrollTo(0, document.body.scrollHeight);
+            });
+
+            socket.on('user list update', function() {
+                fetch('/getUsers')
+                .then(res => res.json())
+                .then(data => {
+                    //reset playerlist
+                    playerList.innerHTML = "";
+
+                    for(var x = 0; x < data.playerList.length; x++) {
+                        const player = data.playerList[x];
+                        //console.log(player);
+                        var el = document.createElement('li');
+                        el.textContent = player.clientName;
+                        el.dataset = player.socketID;
+                        el.addEventListener('click', function(e) {
+                            socket.emit('challenge', player.socketID)
+                        });
+                        playerList.appendChild(el);
+                    }
+                });
+            });
+
+            socket.on('challenge', function(obj) {
+                var popup = document.getElementById('challenge-popup');
+
+                //display popup
+                popup.style.display = 'block';
+
+                // updated span to show challenger username
+                popup.querySelector('div p span').textContent = obj.challengerUsername;
+
+                // set hidden value to challengerScocketId
+                var hidden = document.getElementById('id');
+                hidden.value = obj.challengerSocketId;
+
+                var acceptBtn = document.getElementById('acceptBtn');
+                var declineBtn = document.getElementById('declineBtn');
+
+                //set up event listeners for buttons on popup
+                acceptBtn.addEventListener('click', function(e) {
+                    socket.emit('accept', hidden.value);
+                });
+                declineBtn.addEventListener('click', function(e) {
+                    socket.emit('decline', hidden.value);
+                    popup.style.display = 'none';
+                    hidden.value = "";
+                });
+            });
+
+            socket.on('accept', function(obj)  {
+                fetch('/createGameRoom', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({challengerSocketId: obj.challengerSocketId, opponentSocketId: obj.opponentSocketId})
+                }).then(res=> res.json()).then(data => {
+                    // redirect to new gameroom
+                    window.location = data.url;
+                });
+            });
+
+
+            socket.on('gameroom created', function(roomId) {
+                //redirect to gameroom
+                window.location = `/gameroom/${roomId}`;
             });
 
         </script>
