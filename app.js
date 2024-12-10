@@ -73,6 +73,39 @@ app.get('/', (req,res) => {
     res.status(200).sendFile(__dirname + '/frontend/views/login.html');
 });
 
+app.post('/login', (req, res) => {
+    const username = req.body.username;
+    const password = req.body.password;
+    
+    // still needs work TODO
+    const db = new DB();
+    db.getUserByUsername(username)
+        .then(async result => {
+            //console.log(result.passwordHash);
+            const passCheck = await result.checkLogin(password);
+            
+            if (passCheck) {
+                req.session.user = result;
+                res.status(200).redirect(`/homepage`);
+            } else {
+                res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
+            }
+        }).catch(error => {
+            console.log("getUserByUsername Error: ", error);
+            res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
+        });
+});
+
+app.post('/logout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            return res.status(500).send('Logout failed.');
+        }
+        res.clearCookie('session_cookie_name');
+        res.sendStatus(200);
+    });
+});
+
 app.get('/register', (req, res) => {
     // need custom-token nonce  TODO
     res.status(200).sendFile(__dirname + '/frontend/views/register.html');
@@ -102,29 +135,6 @@ app.post('/register', async (req,res) => {
 
     if (createdUserId) { res.status(201).redirect('/'); }
     else { res.status(500).redirect('/register'); }
-});
-
-app.post('/login', (req, res) => {
-    const username = req.body.username;
-    const password = req.body.password;
-    
-    // still needs work TODO
-    const db = new DB();
-    db.getUserByUsername(username)
-        .then(async result => {
-            //console.log(result.passwordHash);
-            const passCheck = await result.checkLogin(password);
-            
-            if (passCheck) {
-                req.session.user = result;
-                res.status(200).redirect(`/homepage`);
-            } else {
-                res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
-            }
-        }).catch(error => {
-            console.log("getUserByUsername Error: ", error);
-            res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
-        });
 });
 
 //needs work TODO
