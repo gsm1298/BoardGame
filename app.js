@@ -7,6 +7,8 @@ import MySQLStore from 'express-mysql-session';
 import { v4 as genuuid } from 'uuid';
 
 import bodyParser from 'body-parser';
+import { xss } from 'express-xss-sanitizer';
+import { sanitize } from 'express-xss-sanitizer';
 
 import dotenv from 'dotenv';
 import http from 'http';
@@ -75,6 +77,9 @@ app.use(sessionMW);
 
 //websocket session sharing
 io.engine.use(sessionMW);
+
+//set up xss sanitization middleware 
+app.use(xss());
 
 // needs work TODO
 app.get('/', (req,res) => {
@@ -507,7 +512,9 @@ io.on('connection', (socket) => {
     //might need reject
 
     socket.on('chat message', (msg) => {
-        //need to sanitize message TODO
+        msg = sanitize(msg);
+        if(msg.trim() == '') { return; }
+        
         console.log(`${socket.request.session.user.username} sent a message to room id: `, socket.request.session.room_id);
         io.to(parseInt(socket.request.session.room_id)).emit('chat message', {username: socket.request.session.user.username, message: msg});
         
@@ -523,14 +530,22 @@ io.on('connection', (socket) => {
 
     socket.on('give up', async () => {
         console.log(`${socket.request.session.user.username} has given up in room ${socket.request.session.room_id}`);
-        io.to(parseInt(socket.request.session.room_id)).emit('player gave up', socket.request.session.user.username);
         // Make sure to update db
         const db = new DB();
+        
+        //pull gamestate from db to be sure its correct
+        const gamestate = await db.getGameState(socket.request.session.room_id).catch(error => console.log(error));
+        
         var winnerId = null;
-        if (socket.request.session.gamestate.player1_id == socket.request.session.user) {winnerId = req.request.session.gamestate.player2_id;}
-        else {winnerId = socket.request.session.gamestate.player1_id;}
+        if (gamestate.player1_id == socket.request.session.user.id) {winnerId = gamestate.player2_id;}
+        else {winnerId = gamestate.player1_id;}
 
-        var x = await db.updateGameRoomWinnerById(winnerId, socket.request.session.room_id).catch(error => { console.error(error)});
+        console.log("winnerId app: ", winnerId);
+        db.updateGameRoomWinnerById(winnerId, socket.request.session.room_id)
+        .then(res => {
+            //only emit once db is updated
+            io.to(parseInt(socket.request.session.room_id)).emit('player gave up', socket.request.session.user.username);
+        }).catch(error => { console.error(error)});
     });
 });
 server.listen(3000, () => {

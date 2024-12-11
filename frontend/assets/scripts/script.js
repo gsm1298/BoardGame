@@ -261,7 +261,7 @@ function displayGiveUpPopup() {
   const button = document.createElement("button");
   button.setAttribute("type", "button");
   button.innerText = "Back to Lobby";
-  button.addEventListener('click', function () { window.location = '/homepage'});
+  button.addEventListener('click', function () { window.location = '/homepage'; });
   const div = document.createElement("div");
   
   div.appendChild(header);
@@ -450,7 +450,6 @@ function highlightPlacement(startIndex, size, status) {
   }
 }
 
-
 // Check if the placement is valid
 function isValidPlacement(startIndex, size) {
   const rowStart = Math.floor(startIndex / BOARD_SIZE) * BOARD_SIZE;
@@ -470,7 +469,6 @@ function isValidPlacement(startIndex, size) {
   }
   return true;
 }
-
 
 // Place the ship on the board
 function placeShip(startIndex, size) {

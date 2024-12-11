@@ -85,7 +85,7 @@ body {
     padding: 0;
     border: black solid 2px;
     text-align: left;
-    max-height: 90vh;
+    max-height: 80vh;
     /* Adjust height as needed */
     overflow-y: auto;
     /* Enable vertical scrolling */
@@ -93,6 +93,7 @@ body {
 
 #messages>li {
     padding: 0.5rem 1rem;
+    overflow-wrap: break-word;
 }
 
 #messages>li:nth-child(odd) {
