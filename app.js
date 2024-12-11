@@ -90,8 +90,7 @@ app.post('/login', (req, res) => {
     const secret_key = process.env.recaptchaSecret;
 
     const url = 
-    `https://www.google.com/recaptcha/api/siteverify?
-    secret=${secret_key}&response=${response_key}`;
+    `https://www.google.com/recaptcha/api/siteverify?secret=${secret_key}&response=${response_key}`;
 
     // Make post to veriy captcha
     fetch(url, {
@@ -99,7 +98,6 @@ app.post('/login', (req, res) => {
     })
         .then((response) => response.json())
         .then((google_response) => {
-            console.log(google_response);
             if (google_response.success == true) {
                 const db = new DB();
                 db.getUserByUsername(username)
@@ -117,7 +115,6 @@ app.post('/login', (req, res) => {
                         res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
                     });
             } else {
-                console.log('yes');
                 return res.status(401).redirect('/login');
             }
         }).catch((error) => {
