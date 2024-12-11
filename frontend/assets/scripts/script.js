@@ -595,7 +595,7 @@ function removeStartPhaseElements() {
 /* add auth middleware to make sure the user is authenticated before allow access 
   to endpoints other than login or registration DONE*/
 // create registation page and logic on server DONE
-// add nounce to registration TODO
+// add nounce to registration DONE
 // add validation and sanitization to all input fields TODO
 // add validation for user sent json or data TODO
 // add timeout if a player disconnects TODO
@@ -608,7 +608,7 @@ function removeStartPhaseElements() {
 // add attack svg animation when attacking or getting attacked TODO
 // add hit (explotion/fire) and miss (splash) svg animation TODO
 
-// redirect users who are not suposed to be in a game room back to lobby TODO
-// redirect to lobby when entring game room that has ended TODO
+// redirect users who are not suposed to be in a game room back to lobby DONE
+// redirect to lobby when entring game room that has ended DONE
 
 // SETUP SERVER BEFORE PRESENTATION DONE WOOOO -- DO THIS NOW

@@ -151,9 +151,7 @@ export class DB {
         });
     }
 
-    // finish setting up database link and finish getting basic game working.
-    // add validation next
-    // add nounce to registation after
+    // add validation next -- still need some 
     // add chat logging function next
 
     /**

@@ -20,6 +20,7 @@ import { GameState } from './server/business/GameState.js';
 //Remove later TODO
 import {DB} from './server/data_access/DataAccess.js';
 import { Board } from './server/business/Board.js';
+import { error } from 'console';
 //import {User} from './server/business/User.js';
 
 const app = express();
@@ -42,7 +43,7 @@ app.use(bodyParser.json());
 
 dotenv.config();
 
-// move or put in a file TODO
+// read values in from enviroment variables
 const options = 
 {
     host: process.env.host,
@@ -118,10 +119,9 @@ app.get('/register', (req, res) => {
     // Send the HTML file with the nonce injected into it
     res.sendFile(path.join(__dirname, '/frontend/views/register.html'), {
         headers: {
-            'X-Nonce': nonce, // Optionally send nonce in the header as well
+            'X-Nonce': nonce,
         },
     });
-    // need custom-token nonce  TODO
     res.status(200).send(`
         <!DOCTYPE html>
         <html lang="en">
@@ -163,9 +163,6 @@ app.post('/register', async(req, res) => {
 
     const expectedNonce = req.session.nonce;
 
-    //console.log(expectedNonce);
-    //console.log(nonce);
-
     // Validate nonce and timestamp
     if (nonce !== expectedNonce) {
         return res.status(400).json({ error: 'Invalid nonce.' });
@@ -177,7 +174,6 @@ app.post('/register', async(req, res) => {
     if (timeDifference > MAX_NONCE_AGE) {
         return res.status(400).json({ error: 'Nonce expired.' });
     }
-
 
     const db = new DB();
 
@@ -226,7 +222,7 @@ app.get(`/homepage`, (req, res) => {
             return res.status(307).redirect(`/gameroom/${req.session.room_id}`); 
         }
 
-        req.session.room_id = -1; //TODO- look back at
+        req.session.room_id = -1; // -1 since it will never be used for game id
         res.status(200).sendFile(__dirname + `/frontend/views/homepage.html`);
     } else { //if no session set redirect to login
         res.status(401).redirect(`/`);
@@ -258,9 +254,9 @@ app.get(`/gameroom/:room_id`, async(req, res) => {
     //check to make use user is suposed to be in the game room
     const db = new DB();
     const x = await db.getGameState(req.params.room_id);
-    if (x.winner) { return res.status(403).redirect('/home'); } //if game is over redirect to homepage
+    if (x.winner) { req.session.room_id = -1; return res.status(403).redirect('/homepage'); } //if game is over redirect to homepage
     if (req.session.user.id != x.player1_id && req.session.user.id != x.player2_id) {
-        return res.status(403).redirect('/home'); //user is not in this game redirect home
+        return res.status(403).redirect('/homepage'); //user is not in this game redirect home
     }
 
     if (req.session.room_id != req.params.room_id) { req.session.room_id = req.params.room_id; }
@@ -275,7 +271,13 @@ app.get(`/gameroom/:room_id`, async(req, res) => {
 });
 
 app.post(`/readyUp/:room_id`, async (req,res) => {
-    //check to make usre user is suposed to be here TODO
+    //check to make usre user is suposed to be here
+    const db = new DB();
+    const temp = await db.getGameState(req.params.room_id);
+    if (req.session.user.id != temp.player1_id && req.session.user.id != temp.player2_id) {
+        return res.status(403).redirect('/homepage'); //user is not in this game redirect home
+    }
+
     //validate user board TODO
     const gamestate = req.session.gamestate;
     const user = req.session.user;
@@ -298,7 +300,6 @@ app.post(`/readyUp/:room_id`, async (req,res) => {
     }
     else { return res.sendStatus(400); }
 
-    const db = new DB();
     var x = await db.updateGameRoomReadyState(gamestate).catch(error => { console.error('error in updateGameRoomReadyState:', error); return res.sendStatus(500) } );
 
     req.session.gamestate = gamestate;
@@ -308,10 +309,13 @@ app.post(`/readyUp/:room_id`, async (req,res) => {
 
 // send back if game is in start phase, play phase, or complete
 app.get('/gamePhase', async(req,res) =>{
-    // check if player has access TODO
+    // check if player has access
+    const db = new DB(); 
     
-    const db = new DB();
     var currentGamestate = await db.getGameState(req.session.room_id).catch(error => { console.error('error in getGameState:', error); return res.sendStatus(500); });
+    if (req.session.user.id != currentGamestate.player1_id && req.session.user.id != currentGamestate.player2_id) {
+        return res.status(403).redirect('/homepage'); //user is not in this game redirect home
+    }
 
     // check what phase the game is in based on the current gamestate and return relavent info based on it
     var p1_id = currentGamestate?.player1_id;
@@ -364,19 +368,20 @@ app.get('/gamePhase', async(req,res) =>{
     else { res.status(200).json({phase: 'Ended', gamestate: currentGamestate}); } // the game already has a winner send full gamestate object
 });
 
-// game testing TODO
 app.get("/attack", async(req, res) => {
-    //TODO
+    const db = new DB();
+    const temp = await db.getGameState(req.session.room_id).catch(error => console.error(error));
+    if (req.session.user.id != temp.player1_id && req.session.user.id != temp.player2_id) {
+        return res.status(403).redirect('/homepage'); //user is not in this game redirect home
+    }
     const index = parseInt(req.query.index, 10);
     const userId = req.session.user.id;
 
-    if(gamestate.playerTurn != userId) { return res.sendStatus(403); } // incorrect user attacking
+    if(temp.playerTurn != userId) { return res.sendStatus(403); } // incorrect user attacking
     
-    //pull from db to make sure game state is latest
-    const db = new DB();
-    var x = await db.getGameState(req.room_id).catch(error => console.error(error));
+    //set var based on what was pulled from db to make sure game state is latest
 
-    const gamestate = (x) ? x : req.session.gamestate;
+    const gamestate = (temp) ? temp : req.session.gamestate;
     const enemyBoard = (gamestate.player1_board.id == userId) ? gamestate.player2_board : gamestate.player1_board;
 
     //should proably check if index has already been attacked TODO
