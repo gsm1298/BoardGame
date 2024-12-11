@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Gameroom</title>
         <style>
-            body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+            body { margin: 0; padding-bottom: 2rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
       
             #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0;  display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); width: inherit; }
             #input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
@@ -14,29 +14,67 @@
 
             #content-container { display: flex; flex-direction: row; }
 
-            #player-container { margin: 0; padding: 0; width: 30%; text-align: center; }
-            #playerList{ list-style-type: none; margin: 0; padding: 0; text-align: left; }
-            #playerList > li { padding: 0.5rem 1rem; border: black solid 2px; cursor: pointer; }
-            #playerList > li:nth-child(odd) { background: #efefef; }
+            #game-container { margin: 0; padding: 0; width: 80%; text-align: center; }
+            
       
-            #message-container { margin-left: .5rem; padding: 0; width: 70%; text-align: center ; border-left: black solid 3px; position: fixed; right: 0; top: 0; bottom: 0; }
-            #messages { list-style-type: none; margin: 0; padding: 0;  border: black solid 2px; text-align: left; max-height: 90vh; /* Adjust height as needed */ overflow-y: auto; /* Enable vertical scrolling */ }
+            #message-container { margin-left: .5rem; padding: 0; width: 20%; text-align: center ; border-left: black solid 3px; position: fixed; right: 0; top: 0; bottom: 0; }
+            #messages { list-style-type: none; margin: 0; padding: 0;  border: black solid 2px; text-align: left; max-height: 90vh; overflow-y: auto; }
             #messages > li { padding: 0.5rem 1rem; }
             #messages > li:nth-child(odd) { background: #efefef; }
 
-            #challenge-popup { 
-                display: none; /* Hidden by default */
-                position: fixed; /* Stay in place */
-                z-index: 1; /* Sit on top */
-                padding-top: 100px; /* Location of the box */
-                left: 0;
-                top: 0;
-                width: 100%; /* Full width */
-                height: 100%; /* Full height */
-                overflow: auto; /* Enable scroll if needed */
+            #board-container { display: flex; justify-content: space-around; }
+
+            #board-container h3 { margin: .25em; }
+
+            svg.board {
+                fill: #87cefa;
+                overflow: visible;
+                padding: auto;
+            }
+            .cell { stroke: #333; stroke-width: 1; }
+            .label {
+                font-family: Arial, sans-serif;
+                font-size: 16px;
+                font-weight: bold;
+                text-anchor: middle;
+                dominant-baseline: middle;
             }
 
-            #challenge-popup > div {
+            #ship-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #eee;
+            padding: .2em;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            }
+
+            #ship-container h3, #ship-container h4, #ship-container h5{ margin: .25em; }
+            .ship {
+                fill: darkgray;
+                stroke: black;
+                stroke-width: 2px;
+            }
+            #ships .ship { cursor: grab; }
+            .ship.dragging { cursor: grabbing; }
+            .cell.valid { fill: lightgreen; opacity: 0.5; }
+            .cell.invalid { fill: lightcoral; opacity: 0.5; }
+            .cell.ship { fill: gray; stroke: black; stroke-width: 2px; }
+            .cell.clickable { cursor: pointer; }
+            .cell.hit { fill: red; }
+            .cell.miss { fill: lightblue}
+            #end-popup, #giveup-popup { 
+                position: fixed;
+                z-index: 1; 
+                padding-top: 100px;
+                left: 0;
+                top: 0;
+                width: 100%; 
+                height: 100%;
+                overflow: auto;
+            }
+            #end-popup > div, #giveup-popup > div {
                 margin: auto;
                 padding: 20px;
                 border: 1px solid #888;
@@ -46,13 +84,51 @@
                 flex-direction: column;
                 align-items: center;
             }
-          </style>
+            #give-up-container, #giveup-popup {
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                z-index: 1000;
+            }
+            #give-up-btn {
+                background: #ff4d4d;
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 3px;
+                font-size: 1rem;
+                cursor: pointer;
+                box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+            }
+            #give-up-btn:hover {
+                background: #e60000;
+            }
+        </style>
     </head>
     <body>
+        <div id="give-up-container">
+            <button id="give-up-btn">Give Up</button>
+        </div>
         <div id="content-container">
-            <div id="player-container">
-                <h3>Game board probably</h3>
-                <ul id="playerList"></ul>
+            <div id="game-container">
+                <div id="board-container">
+                    <div>
+                        <h3>Your Board</h3>
+                        <svg id="player-board" class="board" width="440" height="440"></svg>
+                    </div>
+                    <div>
+                        <h3>Enemy Board</h3>
+                        <svg id="enemy-board" class="board enemy-board" width="440" height="440"></svg>
+                    </div>
+                </div>
+                <div id="start-phase-container">
+                    <div id="ship-container">
+                      <h3>Drag your ships onto the board:</h3>
+                      <h5>Press R to rotate. Curently: <span>Vertical</span></h5>
+                      <svg id="ships" xmlns="http://www.w3.org/2000/svg" width="840" height="80"></svg>
+                    </div>
+                    <button id="ready-btn" disabled>Ready</button>
+                </div>
             </div>
             <div id="message-container">
                 <h3>Chat</h3>
@@ -63,38 +139,10 @@
             </div>
         </div>
 
-        <div id="challenge-popup">
-            <div>
-                <h3>Challenged</h3>
-                <p>You Have been Challenged by: <span></span></p>
-                <div><button id="acceptBtn" type="button">Accept</button><button id="declineBtn" type="button">Decline</button></div>
-            </div>
-            <input type="hidden" id="id">
-        </div>
-
         <script src="/socket.io/socket.io.js"></script>
         <script>
             var socket = io.connect();
             socket.emit('joinRoom', parseInt(window.location.pathname.split('/')[2]));
-
-            // make the player list
-            //var playerList = document.getElementById('playerList');
-
-            // fetch('/getUsers')
-            //     .then(res => res.json())
-            //     .then(data => {
-            //         for(var x = 0; x < data.playerList.length; x++) {
-            //             const player = data.playerList[x];
-            //             //console.log(player);
-            //             var el = document.createElement('li');
-            //             el.textContent = player.clientName;
-            //             el.dataset = player.socketID;
-            //             el.addEventListener('click', function(e) {
-            //                 socket.emit('challenge', player.socketID)
-            //             });
-            //             playerList.appendChild(el);
-            //         }
-            //     });
 
             var messages = document.getElementById('messages');
             var form = document.getElementById('form');
@@ -115,13 +163,7 @@
                 messages.scrollTop = messages.scrollHeight;
             });
 
-            socket.on('user list update', function() {
-                fetch('/getUsers')
-                .then(res => res.json())
-                .then(data => {
-                    console.log("User list updated");
-                });
-            });
         </script>
+        <script src="../assets/scripts/script.js"></script>
     </body>
 </html>

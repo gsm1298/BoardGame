@@ -9,27 +9,12 @@ h1 {
   margin-top: 20px;
 }
 
-/* #game-container {
-  display: flex;
-  justify-content: center;
-  gap: 50px;
-  margin-top: 20px;
-}
-
-#player-board, #enemy-board {
-  display: grid;
-  grid-template-columns: repeat(10, 40px);
-  grid-template-rows: repeat(10, 40px);
-  gap: 2px;
-} */
-
 #board-container{
     display: flex;
     justify-content: space-around;
 }
 
 svg.board {
-    /* border: 2px solid black; */
     fill: #87cefa;
     overflow: visible;
     padding: auto;
@@ -46,29 +31,6 @@ svg.board {
     dominant-baseline: middle;
 }
 
-/* .cell {
-  width: 40px;
-  height: 40px;
-  background-color: #87cefa;
-  border: 1px solid #4682b4;
-  cursor: pointer;
-}
-
-.enemy .cell {
-    cursor: pointer;
-}
-.cell.hit {
-  background-color: red;
-}
-
-.cell.miss {
-  background-color: gray;
-}
-
-.cell.ship {
-  background-color: #808080;
-} */
-
 #ship-container {
   display: flex;
   flex-direction: column;
@@ -84,11 +46,19 @@ svg.board {
 }
 
 .ship {
-  cursor: grab;
   fill: darkgray;
   stroke: black;
   stroke-width: 2px;
 }
+
+#ships.ship {
+    cursor: grab;
+}
+
+.ship.dragging {
+    cursor: grabbing;
+}
+
 .cell.valid {
     fill: lightgreen;
     opacity: 0.5;

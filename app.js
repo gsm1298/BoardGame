@@ -6,7 +6,6 @@ import session from 'express-session';
 import MySQLStore from 'express-mysql-session';
 import { v4 as genuuid } from 'uuid';
 
-
 import bodyParser from 'body-parser'
 
 import http from 'http';
@@ -14,9 +13,12 @@ import {Server} from 'socket.io';
 
 import bcrypt from 'bcrypt'
 
+import { GameState } from './server/business/GameState.js';
 
 //Remove later TODO
 import {DB} from './server/data_access/DataAccess.js';
+import { Board } from './server/business/Board.js';
+import { error } from 'console';
 //import {User} from './server/business/User.js';
 
 const app = express();
@@ -70,6 +72,9 @@ io.engine.use(sessionMW);
 
 // needs work TODO
 app.get('/', (req,res) => {
+    //redirect if user is auth
+    if (req.session.user) { return res.status(200).redirect('/homepage'); }
+
     res.status(200).sendFile(__dirname + '/frontend/views/login.html');
 });
 
@@ -91,19 +96,9 @@ app.post('/login', (req, res) => {
                 res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
             }
         }).catch(error => {
-            console.log("getUserByUsername Error: ", error);
+            console.error("getUserByUsername Error: ", error);
             res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
         });
-});
-
-app.post('/logout', (req, res) => {
-    req.session.destroy(err => {
-        if (err) {
-            return res.status(500).send('Logout failed.');
-        }
-        res.clearCookie('session_cookie_name');
-        res.sendStatus(200);
-    });
 });
 
 app.get('/register', (req, res) => {
@@ -112,7 +107,7 @@ app.get('/register', (req, res) => {
 });
 
 app.post('/register', async (req,res) => {
-    //need to validate and sanitize
+    //need to validate and sanitize TODO
 
     const username = req.body.username;
     const password = req.body.password;
@@ -120,9 +115,8 @@ app.post('/register', async (req,res) => {
 
     const db = new DB();
 
-    var userExist = null;
     //check to make sure user name does not exist in DB
-    var user = await db.getUserByUsername(username).catch(error => { console.error('error in getUserByUsername:', error); });
+    var user = await db.getUserByUsername(username).catch(error => { console.error('error in getUserByUsername:', error); return res.sendStatus(500); });
 
     if (user) { return res.status(409).send(`<h2>Username already in use.</h2><a href="/register">Try Again</a>`); }
 
@@ -136,6 +130,27 @@ app.post('/register', async (req,res) => {
     if (createdUserId) { res.status(201).redirect('/'); }
     else { res.status(500).redirect('/register'); }
 });
+
+app.post('/logout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            return res.status(500).send('Logout failed.');
+        }
+        res.clearCookie('session_cookie_name');
+        res.sendStatus(200);
+    });
+});
+
+// set authentication middleware
+function isAuth(req, res, next) {
+    if (req.session.user) {
+        next();
+    } else {
+        res.status(401).redirect('/');
+    }
+}
+
+app.use(isAuth);
 
 //needs work TODO
 app.get(`/homepage`, (req, res) => {
@@ -152,119 +167,194 @@ app.get(`/homepage`, (req, res) => {
 app.post(`/createGameRoom`, (req, res) => {
     //create the game room in the DB
     const db = new DB();
-    db.CreateGameRoom().then( result => {
-        console.log(result);
+    db.CreateGameRoom(req.session.user.id, req.body.opponentId).then( result => {
+        //console.log(result);
         if (result) { req.session.room_id = result; }
-        else { return res.status(500); }
+        else { return res.sendStatus(500); }
 
         // send game room id to opponant so they can join
         io.to(req.body.opponentSocketId).emit('gameroom created', req.session.room_id);
 
+        req.session.gamestate = new GameState(req.session.room_id, req.session.user.id, req.body.opponentId);
+
         res.status(200).json({url: `/gameroom/${req.session.room_id}`});
     }).catch(error => {
-        console.log("createGameRoom Error: ", error);
-        return res.status(500);
+        console.error("createGameRoom Error: ", error);
+        return res.sendStatus(500);
     });
 });
 
 //needs work TODO
 app.get(`/gameroom/:room_id`, (req, res) => {
     //check to make use user is suposed to be in the game room TODO
-    if (req.session.user) {
-        if (req.session.room_id !== req.params.room_id) { req.session.room_id = req.params.room_id; }
-        res.status(200).sendFile(__dirname + `/frontend/views/gameroom.html`);
-    }
+    if (req.session.room_id != req.params.room_id) { req.session.room_id = req.params.room_id; }
+    if(req.session.gamestate?.id != req.params.room_id) {
+        // add the game state to the users session 
+        // if the gamestate session variable is being set here they are player2
+        req.session.gamestate = new GameState(parseInt(req.params.room_id), null, req.session.user.id);
+        //console.log(`${req.session.user.username}: `, req.session.gamestate);
+    } //else dont reset incase of refresh or reconnect
+
+    res.status(200).sendFile(__dirname + `/frontend/views/gameroom.html`);
 });
 
+app.post(`/readyUp/:room_id`, async (req,res) => {
+    //check to make usre user is suposed to be here TODO
+    //validate user board TODO
+    const gamestate = req.session.gamestate;
+    const user = req.session.user;
 
+    if(gamestate.id != req.params.room_id) { return res.sendStatus(400); } // the room_id the request is being sent from is not the same as what its supposed to go to
+
+    if (gamestate.player1_id 
+        && user.id == gamestate.player1_id) 
+    { 
+        gamestate.player1_ready = true; 
+        gamestate.player1_board.id = user.id;
+        gamestate.player1_board.ships = req.body.playerShips;
+    }
+    else if (gamestate.player2_id 
+        && user.id == gamestate.player2_id) 
+    { 
+        gamestate.player2_ready = true;
+        gamestate.player2_board.id = user.id;
+        gamestate.player2_board.ships = req.body.playerShips; 
+    }
+    else { return res.sendStatus(400); }
+
+    const db = new DB();
+    var x = await db.updateGameRoomReadyState(gamestate).catch(error => { console.error('error in updateGameRoomReadyState:', error); return res.sendStatus(500) } );
+
+    req.session.gamestate = gamestate;
+
+    res.sendStatus(200);
+});
+
+// send back if game is in start phase, play phase, or complete
+app.get('/gamePhase', async(req,res) =>{
+    // check if player has access TODO
+    
+    const db = new DB();
+    var currentGamestate = await db.getGameState(req.session.room_id).catch(error => { console.error('error in getGameState:', error); return res.sendStatus(500); });
+
+    // check what phase the game is in based on the current gamestate and return relavent info based on it
+    var p1_id = currentGamestate?.player1_id;
+    var p2_id = currentGamestate?.player2_id;
+    if(!(p1_id && p2_id)) { return res.status(200).json({phase: 'Setup'}); } // both player ids are not in the db so they cant be ready
+
+    if(currentGamestate.winner) { return res.status(200).json({phase: 'GaveUp', currentGamestate: currentGamestate}); }// player gave up
+
+    var p1_board = currentGamestate?.player1_board;
+    var p2_board = currentGamestate?.player2_board;
+    if(!(p1_board && p2_board)) { return res.status(200).json({phase: 'Setup'}); } // both player boards are not in the db so can not continue
+
+    if(!(currentGamestate.player1_ready && currentGamestate.player2_ready)) { return res.status(200).json({phase: 'Setup'}); } // both players have not been set to ready
+
+    //console.log(currentGamestate.winner);
+    if((currentGamestate.player1_ready && currentGamestate.player2_ready) && !currentGamestate.winner) { 
+        // set the gamestate session variable to the latest gamestate from the db
+        req.session.gamestate = currentGamestate;
+        var gamestate = req.session.gamestate;
+
+        // if no playerTurn value is set then assume the game just started and set it to player 1 and update db
+        if(!gamestate.playerTurn){
+            // check if there are attacks on either player board, if there are this would mean the game was being played
+            if (gamestate.player1_board.attacks.length == 0 && gamestate.player2_board.attacks.length == 0) {
+                // if no attacks found
+                var x = await db.updateGameRoomPlayerTurn(gamestate).catch(error => { console.error('error in updateGameRoomPlayerTurn:', error); return res.sendStatus(500); });
+                if(x) { req.session.gamestate.playerTurn = gamestate.player1_id; } else { return res.sendStatus(500); } // error updating player turn in db
+            } else { return res.sendStatus(500); } // there was a server issue that unset the player_turn LOOK BACK AT TODO
+        }
+
+        // if there is a playerTurn set send back the current relavent info to the client about the gamestate
+        var resGamestate = new GameState(gamestate.id, p1_id, p2_id, new Board(), new Board(), 
+            gamestate.player1_ready, gamestate.player2_ready, gamestate.playerTurn, gamestate.winner);
+
+        // only send back info about the boards that is needed for each player. prevent being able to see the enemy ship locations
+        if(resGamestate.player1_id == req.session.user.id) { 
+            resGamestate.player1_board = gamestate.player1_board;
+            resGamestate.player2_board.id = gamestate.player2_board.id;
+            resGamestate.player2_board.attacks = gamestate.player2_board.attacks;
+        }
+        if(resGamestate.player2_id == req.session.user.id) { 
+            resGamestate.player2_board = gamestate.player2_board; 
+            resGamestate.player1_board.id = gamestate.player1_board.id;
+            resGamestate.player1_board.attacks = gamestate.player1_board.attacks;
+        }
+
+        return res.status(200).json({phase: 'Started', gamestate: resGamestate, userId: req.session.user.id}); 
+    } // both players have been set to ready and the game has not been won
+
+    else { res.status(200).json({phase: 'Ended', gamestate: currentGamestate}); } // the game already has a winner send full gamestate object
+});
 
 // game testing TODO
 const BOARD_SIZE = 10;
 const SHIPS = [5, 4, 3, 3, 2]; // Ship lengths
-let enemyShips = generateShips();
-let playerShips = generateShips();
-
-app.get(`/gameboard`,(req, res) => {
-    res.status(200).sendFile(__dirname + `/frontend/views/gameboard.html`);
-});
-
-app.get("/setup", (req, res) => {
-    res.json({ ships: playerShips.flat() });
-  });
   
-  app.get("/attack", (req, res) => {
+app.get("/attack", async(req, res) => {
+    //TODO
     const index = parseInt(req.query.index, 10);
-    const hit = enemyShips.some(ship => ship.includes(index));
-    res.json({ hit });
-  });
-  
-// Generate Ships
-function generateShips() {
-    const board = [];
-    while (board.length < SHIPS.length) {
-      const ship = placeShip(SHIPS[board.length], board);
-      board.push(ship);
+    const userId = req.session.user.id;
+    const gamestate = req.session.gamestate;
+    const enemyBoard = (gamestate.player1_board.id == userId) ? gamestate.player2_board : gamestate.player1_board;
+
+    if(gamestate.playerTurn != userId) { return res.sendStatus(403); } // incorrect user attacking
+    
+    //should probably check db to make sure board is correct TODO
+    //should proably check if index has already been attacked TODO
+    const hit = enemyBoard.ships.some(ship => ship.includes(index));
+
+    const db = new DB();
+    //update gamestate in session and in db
+    enemyBoard.attacks.push({index: index, hit: hit});
+    if(gamestate.player1_board.id == userId) {
+        gamestate.player2_board.attacks =  enemyBoard.attacks;
+
+    } else {
+        gamestate.player1_board.attacks =  enemyBoard.attacks;
     }
-    return board;
-  }
-  
-  function placeShip(length, existingShips) {
-    let isValid = false;
-    let ship = [];
-  
-    while (!isValid) {
-      const isHorizontal = Math.random() > 0.5;
-      const start = Math.floor(Math.random() * BOARD_SIZE * BOARD_SIZE);
-      ship = [];
-      for (let i = 0; i < length; i++) {
-        const position = isHorizontal ? start + i : start + i * BOARD_SIZE;
-  
-        // Ensure the ship stays within row or column bounds
-        const isWithinRow = isHorizontal
-          ? Math.floor(position / BOARD_SIZE) === Math.floor(start / BOARD_SIZE)
-          : position < BOARD_SIZE * BOARD_SIZE;
-  
-        if (isWithinRow) {
-          ship.push(position);
-        } else {
-          break;
+    var x = await db.updateGameRoomAfterPlayerTurn(gamestate).catch( error => { console.error('error in updateGameRoomAfterTurn:', error); return res.sendStatus(500); });
+
+    const flattenedShips = enemyBoard.ships.flat();
+    const attackIndices = enemyBoard.attacks.map(attack => attack.index);
+
+    const allShipsHit = flattenedShips.every(index => attackIndices.includes(index));
+
+    // console.log(`player ${req.session.user.username} has won?:`, allShipsHit);
+
+    if(x) {
+        //check if the player who just played won
+        if(allShipsHit) {
+            req.session.gamestate = gamestate
+            req.session.gamestate.winner = req.session.user.id;
+
+            var i = await db.updateGameRoomWinner(req.session.gamestate);
+            if(i) {
+                io.to(parseInt(req.session.room_id)).emit('player has won', {gamestate: req.session.gamestate, username: req.session.user.username});
+                return res.status(200).json({hit});
+            } else {
+                return res.status(500).json({error: "error updating gameroom to have a winner"});
+            }
         }
-      }
-  
-      // Validate ship placement
-      isValid = ship.length === length && isValidShip(ship, existingShips);
+        req.session.gamestate = gamestate;
+        io.to(parseInt(req.session.room_id)).emit('player finished turn')
+        res.status(200).json({ hit });
+    } else {
+        res.sendStatus(500);
     }
+});
   
-    return ship;
-  }
-  
-  function isValidShip(ship, existingShips) {
+function isValidShip(ship, existingShips) {
     // Ensure ship doesn't overlap with existing ships
-    return !existingShips.flat().some(cell => ship.includes(cell));
-  }
-
-
-
-//needs word TODO
-// io.on('connection', (socket) => {
-//     console.log('a user connected');
-//     socket.on('disconnect', () => {
-//         console.log('user disconnected');
-//     });
-// });
-
-// io.on('connection', (socket) => {
-//     socket.on('chat message', (msg) => {
-//       console.log('message: ' + msg);
-//     });
-//   });
+     return !existingShips.flat().some(cell => ship.includes(cell));
+}
 
 //testing TODO look back at
 app.get(`/getUsers`, (req, res) => {
     const clients = io.sockets.adapter.rooms.get(-1);
-    //console.log(clients);
 
-    if (!clients) { return res.status(204)} //if no clients return without sending playerList
+    if (!clients) { return res.sendStatus(204)} //if no clients return without sending playerList
 
     var players = [];
 
@@ -280,8 +370,6 @@ app.get(`/getUsers`, (req, res) => {
 });
 
 io.on('connection', (socket) => {
-    // console.log(socket.id);
-    // console.log(socket.request.session.id);
     socket.on('joinRoom', (roomID) => {
         if (socket.request.session.room_id == roomID) {
             socket.join(roomID);
@@ -310,7 +398,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('accept', (challengerSocketId) => {
-        socket.to(challengerSocketId).emit('accept', {challengerSocketId: challengerSocketId, opponentSocketId: socket.id});
+        socket.to(challengerSocketId).emit('accept', {challengerSocketId: challengerSocketId, opponentSocketId: socket.id, opponentId: socket.request.session.user.id});
     }); 
 
     //need reject
@@ -320,8 +408,20 @@ io.on('connection', (socket) => {
         io.to(parseInt(socket.request.session.room_id)).emit('chat message', socket.request.session.user.username + ': ' + msg);
         //console.log(socket.rooms);
     });
-  });
 
+
+    socket.on('give up', async () => {
+        console.log(`${socket.request.session.user.username} has given up in room ${socket.request.session.room_id}`);
+        io.to(parseInt(socket.request.session.room_id)).emit('player gave up', socket.request.session.user.username);
+        // Make sure to update db
+        const db = new DB();
+        var winnerId = null;
+        if (socket.request.session.gamestate.player1_id == socket.request.session.user) {winnerId = req.request.session.gamestate.player2_id;}
+        else {winnerId = socket.request.session.gamestate.player1_id;}
+
+        var x = await db.updateGameRoomWinnerById(winnerId, socket.request.session.room_id).catch(error => { console.error(error)});
+    });
+});
 server.listen(3000, () => {
     console.log('Server Starting on http://localhost:3000');
 });

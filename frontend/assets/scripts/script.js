@@ -5,11 +5,110 @@ const CELL_SIZE = 40; // Each cell will be 40x40 pixels
 
 const SHIP_SIZES = [5, 4, 3, 3, 2]; // Ship lengths
 let draggedShip = null; // Currently dragged ship
-let isHorizontal = true; // Ship orientation
+let isHorizontal = false; // Ship orientation
 let playerShips = []; // Store ship positions
-const shipsContainer = document.getElementById("ships");
 
-const startGameButton = document.getElementById("start-game");
+const shipsContainer = document.getElementById("ships");
+const readyButton = document.getElementById("ready-btn");
+
+var gamePhase = null; // the current phase the game is in (setup, started, or ended)
+var gamestate = null; // the current state of the game (limited based on phase)
+var userID = null; // used for displaying whos turn it is
+var userName = null // used to display winner
+
+// get the curent gamephase (mainly for refresh protection)
+fetch(`/gamePhase`)
+  .then(res => res.json())
+  .then(data => {
+    gamePhase = data.phase;
+    gamestate = (gamePhase != 'Setup') ? data.gamestate : null;
+    userID = (gamePhase != 'Setup') ? data.userId : null;
+    // Initialize the game in the correct phase and state
+    initializeGame();
+  }).catch(error => {console.error('erorr when calling getGamePhase:', error)});
+
+  //give up event handler
+  document.getElementById("give-up-btn").addEventListener('click', function() {
+    socket.emit('give up');
+  });
+
+// when a player finish their turn rerun gamePhase
+socket.on('player finished turn', function() {
+  fetch(`/gamePhase`)
+  .then(res => res.json())
+  .then(data => {
+    gamePhase = data.phase;
+    gamestate = (gamePhase != 'Setup') ? data.gamestate : null;
+    userID = (gamePhase != 'Setup') ? data.userId : null;
+    // Update game to match new state
+    updateGame();
+  }).catch(error => {console.error('erorr when calling getGamePhase:', error)});;
+});
+
+// when a player has won display a popup and allow them to leave
+socket.on('player has won', async function(info) {
+  userName = await info.username;
+  gamestate = await info.gamestate;
+  // Update one last time to complete the board
+  updateGame();
+  // wait before then making changes for the win state
+  setTimeout(() => {
+    removeTurnInfo();
+    gameEndSetup();
+    displayWinPopup();
+  }, 500); // 500 milliseconds (0.5 seconds)
+});
+
+socket.on('player gave up', function(username) {
+  userName = username;
+  removeStartPhaseElements();
+  displayGiveUpPopup();
+});
+
+// Initialize the boards and game state based on phase
+function initializeGame() {
+  createBoard(playerBoard, false);
+  createBoard(enemyBoard, true);
+  if(gamePhase == 'Setup') {
+    createShips();
+    setupEventListeners();
+  }else if (gamePhase == 'Started') { 
+    removeStartPhaseElements();
+    //setup game event listeners (MAYBE IDK)
+    
+    //append other game visuals like indicator of whos turn it is
+    gameStartSetUp();
+    
+    //place player ships on their board
+    var shipsArr = null;
+    var playerAttackArr = null;
+    var enemyAttackArr = null;
+    if (gamestate.player1_board.ships.length != 0) {
+      shipsArr = gamestate.player1_board.ships;
+      playerAttackArr = gamestate.player1_board.attacks;
+      enemyAttackArr = gamestate.player2_board.attacks;
+    }
+    else {
+      shipsArr = gamestate.player2_board.ships;
+      playerAttackArr = gamestate.player2_board.attacks;
+      enemyAttackArr = gamestate.player1_board.attacks;
+    }
+
+    placeShips(shipsArr, playerBoard);
+
+    //place attacks on the boards
+    placeAttacks(enemyAttackArr, enemyBoard); //place them on the enemy board first
+    placeAttacks(playerAttackArr, playerBoard); //place them on the player board seconds
+  } else if (gamePhase == "Ended") {
+    removeStartPhaseElements();
+    
+    //needs to be updated TODO
+    placeShips(gamestate.player1_board.ships, playerBoard);
+    placeShips(gamestate.player2_board.ships, enemyBoard);
+    placeAttacks(gamestate.player1_board.attacks, playerBoard);
+    placeAttacks(gamestate.player2_board.attacks, enemyBoard);
+  }
+}
 
 // Initialize Boards
 function createBoard(board, isEnemy) {
@@ -28,10 +127,11 @@ function createBoard(board, isEnemy) {
           rect.setAttribute('height', CELL_SIZE);
           rect.setAttribute('class', 'cell');
           rect.setAttribute('data-id', id);
-          if (isEnemy) {
-            rect.addEventListener("click", () => handleEnemyClick(rect));
+          if (isEnemy && gamePhase == 'Started') {
+             rect.addEventListener("click", handleEnemyClick);
+             rect.classList.add('clickable');
           }
-          else {
+          else if (!isEnemy && gamePhase == 'Setup') {
             // Allow ships to be dropped on board cells
             rect.addEventListener("dragover", handleDragOver);
             rect.addEventListener("drop", handleDrop);
@@ -66,7 +166,120 @@ function createBoard(board, isEnemy) {
   }
 }
 
-function handleEnemyClick(cell) {
+// append the info that will be needed for playing the game
+function gameStartSetUp() {
+  const gameConrainer = document.getElementById('game-container');
+  const infoContainer = document.createElement('div');
+  infoContainer.setAttribute("id", "info-container");
+  const turnIndiator = document.createElement("h3");
+  const turnSpan = document.createElement('span');
+  const text1 = document.createTextNode("It Is ");
+  const text2 = document.createTextNode(" Turn");
+
+  turnIndiator.appendChild(text1);
+  turnIndiator.appendChild(turnSpan);
+  turnIndiator.appendChild(text2);
+  infoContainer.appendChild(turnIndiator);
+  gameConrainer.appendChild(infoContainer);
+
+  if (gamestate.playerTurn == userID) { turnSpan.innerText = "Your"; }
+  else { turnSpan.innerText = "Your Opponents"; }
+}
+
+// remove turn based info
+function removeTurnInfo() {
+  const infoContainer = document.getElementById('info-container');
+  if(!infoContainer) { return; } //exit if container dones not exist
+  // remove the info elements
+  infoContainer.remove();
+
+  //remove eventlisteners for board cells
+  const board = document.getElementById('enemy-board');
+  const cells = board.querySelectorAll('*');
+
+  cells.forEach(cell => {
+    const clone = cell.cloneNode(true); // Clone the node
+    cell.parentNode.replaceChild(clone, cell); // Replace the original with the clone
+    clone.style.cursor = "unset";
+  });
+}
+
+// append the info of who won the game
+function gameEndSetup() {
+
+  const gameConrainer = document.getElementById('game-container');
+  const infoContainer = document.createElement('div');
+  infoContainer.setAttribute("id", "end-container");
+  const winIndicator = document.createElement("h2");
+  const text1 = document.createTextNode(`${userName} Has Won!`);
+
+  winIndicator.appendChild(text1);
+  infoContainer.appendChild(winIndicator);
+  gameConrainer.appendChild(infoContainer);
+}
+
+//create and display the win popup
+function displayWinPopup() {
+  const winPopUp = document.createElement("div");
+  winPopUp.setAttribute("id", "end-popup");
+  const header = document.createElement("h1")
+  header.innerText = `${userName} Has Won!`;
+  const button = document.createElement("button");
+  button.setAttribute("type", "button");
+  button.innerText = "Back to Lobby";
+  button.addEventListener('click', function () { window.location = '/homepage'});
+  const div = document.createElement("div");
+  
+  div.appendChild(header);
+  div.appendChild(button);
+  winPopUp.appendChild(div);
+  document.body.appendChild(winPopUp);
+}
+
+
+//create and display the give up popup
+function displayGiveUpPopup() {
+  const giveup = document.createElement("div");
+  giveup.setAttribute("id", "giveup-popup");
+  const header = document.createElement("h1")
+  header.innerText = `${userName} Has Given Up.`;
+  const button = document.createElement("button");
+  button.setAttribute("type", "button");
+  button.innerText = "Back to Lobby";
+  button.addEventListener('click', function () { window.location = '/homepage'});
+  const div = document.createElement("div");
+  
+  div.appendChild(header);
+  div.appendChild(button);
+  giveup.appendChild(div);
+  document.body.appendChild(giveup);
+}
+
+// Update game with new state
+function updateGame() {
+    var playerAttackArr = null;
+    var enemyAttackArr = null;
+    if (gamestate.player1_board.id == userID) {
+      playerAttackArr = gamestate.player1_board.attacks;
+      enemyAttackArr = gamestate.player2_board.attacks;
+    }
+    else {
+      playerAttackArr = gamestate.player2_board.attacks;
+      enemyAttackArr = gamestate.player1_board.attacks;
+    }
+
+    //update the placed attacks on the boards
+    placeAttacks(enemyAttackArr, enemyBoard); //place them on the enemy board first
+    placeAttacks(playerAttackArr, playerBoard); //place them on the player board seconds
+
+    // updated the turn text
+    var turnSpan = document.getElementById("info-container").querySelector("h3 span");
+    if (gamestate.playerTurn == userID) { turnSpan.innerText = "Your"; }
+    else { turnSpan.innerText = "Your Opponents"; }
+}
+
+function handleEnemyClick(event) {
+  const cell = event.target;
   const index = cell.dataset.id;
   fetch(`/attack?index=${index}`)
     .then(res => {
@@ -76,30 +289,10 @@ function handleEnemyClick(cell) {
         return res.json();
     })
     .then(data => {
+      cell.removeEventListener("click", handleEnemyClick);
         cell.classList.add(data.hit ? "hit" : "miss");
     })
     .catch(err => console.error(err));
-}
-
-// Setup Game
-
-
-// Fetch Initial Player Ship Setup
-// fetch("/setup")
-//   .then(res => res.json())
-//   .then(data => {
-//     data.ships.forEach(index => {
-//       const cell = playerBoard.querySelector(`[data-index="${index}"]`);
-//       cell.classList.add("ship");
-//     });
-//   });
-
-// Initialize the player board and ships container
-function initializeGame() {
-  createBoard(playerBoard, false);
-  createBoard(enemyBoard, true);
-  createShips();
-  setupEventListeners();
 }
 
 // Create draggable ships in the ship container
@@ -137,6 +330,8 @@ function createShips() {
 // Drag-and-drop event handlers
 function handleDragStart(event) {
   const ship = event.target.closest(".ship");
+  if (!ship) { console.log('Not ship'); return; }
+
   const boundingRect = ship.getBoundingClientRect();
   const cursorX = event.clientX;
   const cursorY = event.clientY;
@@ -148,9 +343,11 @@ function handleDragStart(event) {
       horizontal: isHorizontal,
       offsetX: cursorX - boundingRect.x,
       offsetY: cursorY - boundingRect.y,
+      element: ship,
   };
 
-  //console.log(`Drag start offset: ${draggedShip.offsetX}, ${draggedShip.offsetY}`);
+  ship.classList.add("dragging");
+  ship.setAttribute('opacity', '.5')
 }
 
 function handleDragOver(event) {
@@ -158,8 +355,6 @@ function handleDragOver(event) {
 
   const cursorX = event.clientX;
   const cursorY = event.clientY;
-
-
 
   // Get board position and dimensions
   const boardRect = playerBoard.getBoundingClientRect();
@@ -209,6 +404,10 @@ function handleDrop(event) {
 
 // Handle the end of dragging (cleanup)
 function handleDragEnd() {
+  // reset ship in ship container in case of invalid placment
+  draggedShip.element.classList.remove('dragging');
+  draggedShip.element.removeAttribute('opacity');
+
   const cells = Array.from(playerBoard.querySelectorAll(".cell"));
   cells.forEach((cell) => cell.classList.remove("valid", "invalid"));
   draggedShip = null; // Reset the dragged ship
@@ -274,71 +473,118 @@ function placeShip(startIndex, size) {
   playerShips.push(ship);
 }
 
+// Place the ship on the board
+function placeShips(shipsArr, board) {
+  for (let x = 0; x < shipsArr.length; x++){
+    for (let i = 0; i < shipsArr[x].length; i++) {
+      const cell = board.querySelector(`[data-id="${shipsArr[x][i]}"]`);
+      cell.setAttribute("fill", "gray");
+      cell.setAttribute("class", "ship");
+    }
+  }
+}
+
+// Place the attckas on the board
+function placeAttacks(attcksArr, board) {
+  for (var i = 0; i < attcksArr.length; i++) {
+    const cell = board.querySelector(`[data-id="${attcksArr[i].index}"`);
+    if(attcksArr[i].hit) { cell.setAttribute("class", "cell hit"); }
+    else { cell.setAttribute("class", "cell miss"); }
+    cell.removeEventListener("click", handleEnemyClick);
+  }
+}
+
 // Check if all ships are placed
 function validateAllShipsPlaced() {
   const allPlaced = playerShips.length === SHIP_SIZES.length;
-  startGameButton.disabled = !allPlaced;
+  readyButton.disabled = !allPlaced;
   return allPlaced;
 }
 
 function setupEventListeners() {
-  // Add event listeners to the "Start Game" button
-  startGameButton.addEventListener("click", () => {
+  // Add event listeners to the Ready button
+  readyButton.addEventListener("click", () => {
     if (validateAllShipsPlaced()) {
-      alert("All ships are placed! Starting the game...");
-      startGame();
+      fetch(`/readyUp/${parseInt(window.location.pathname.split('/')[2])}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({playerShips: playerShips})
+        }).then(res=> res).then(data => {
+            // check for 200 response
+            if(data.status == 200) { 
+              removeStartPhaseElements(); 
+              fetch(`/gamePhase`)
+                .then(res => res.json())
+                .then(data => {
+                  console.log(data); // now make it start the game when the started resposne is sent. make sure to send a socket emit out to make the other player do the same
+                }).catch(error => {console.error('erorr when calling getGamePhase:', error)})
+            }
+        })
+        .catch(error => { console.error('erorr when calling readyUp: ', error); });
     } else {
       alert("Please place all your ships on the board before starting the game.");
     }
   });
 
   // Allow toggling ship orientation with the "R" key
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "r") {
-      isHorizontal = !isHorizontal;
-      //console.log(`Orientation: ${isHorizontal ? "Horizontal" : "Vertical"}`);
-      shipsContainer.parentElement.querySelector('h5 span').textContent = isHorizontal ? "Horizontal" : "Vertical";
-    }
+  document.addEventListener("keydown", handleRotate);
+}
+
+function handleRotate(event) {
+  if (event.key === "r") {
+    isHorizontal = !isHorizontal;
+    //console.log(`Orientation: ${isHorizontal ? "Horizontal" : "Vertical"}`);
+    shipsContainer.parentElement.querySelector('h5 span').textContent = isHorizontal ? "Horizontal" : "Vertical";
+  }
+}
+
+// Removes all start phase elements and eventlisteners
+function removeStartPhaseElements() {
+  const startPhaseContainer = document.getElementById('start-phase-container');
+  if(!startPhaseContainer) { return; } //exit if container dones not exist
+  // remove the start phase elements
+  startPhaseContainer.remove();
+
+  //remove eventlisteners for board cells
+  const board = document.getElementById('player-board');
+  const cells = board.querySelectorAll('*');
+
+  cells.forEach(cell => {
+    const clone = cell.cloneNode(true); // Clone the node
+    cell.parentNode.replaceChild(clone, cell); // Replace the original with the clone
   });
+
+  //remove eventlistener for keydown on board
+  document.removeEventListener("keydown", handleRotate);
 }
-
-// Dummy function for starting the game
-function startGame() {
-  console.log("Game started! Player ships:", playerShips);
-}
-
-
-// Initialize the game
-initializeGame();
-
-
-
 
 // need more work on drag and drop DONE
 // possible make ship move when dragged from container or show its being dragged TODO
 // no preview of where you are placing DONE
 // ship does not actually move when dragged TODO
 // test server validating TODO
-// possibly create gameboard object in server/business TODO
+// possibly create gameboard object in server/business DONE
 // possibly create ships object in server/business TODO
 // possibly create ship object in server/business TODO
-// save game state (both boards) in session since its not visible to client TODO
+// save game state (both boards) in session since its not visible to client DONE
 // save game state in game table in DB for backup TODO
 // add win / fail conditions TODO
-// add multiplayer TODO
+// add multiplayer DONE
 // test multiplayer TODO
-// add chat TODO
-// test chat TODO
-// test room creation again TODO
+// add chat DONE
+// test chat DONE
+// test room creation again DONE
 // make chat logs in DB TODO
 // add sanitization middleware to snitize all input TODO
 // add validation middleware to validate that input is what is exppected TODO
 /* add auth middleware to make sure the user is authenticated before allow access 
-  to endpoints other than login or registration TODO*/
-// create registation page and logic on server TODO
+  to endpoints other than login or registration DONE*/
+// create registation page and logic on server DONE
 // add nounce to registration TODO
+// add validation and sanitization to all input fields TODO
+// add validation for user sent json or data TODO
 // add timeout if a player disconnects TODO
-// add matchmacking to main menu (either select from list or random) TODO
+// add matchmacking to main menu (either select from list or random) DONE
 
 // add better svg graphics for ships TODO ---
 

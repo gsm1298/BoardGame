@@ -10,7 +10,7 @@ export class User {
      * @param {String} userName - User name
      * @param {String} email - Email of user
      * @param {String} passwordHash - Hashed password
-     * @param {Date} createTime - Array of associated organization objects
+     * @param {Date} createTime - the time the account was created
      */
     constructor(id = null, username = null, email = null, passwordHash = null, createTime = null) {
         /** @type {Number} User's id */
