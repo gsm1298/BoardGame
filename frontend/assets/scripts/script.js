@@ -582,10 +582,10 @@ function removeStartPhaseElements() {
 // possibly create ships object in server/business TODO
 // possibly create ship object in server/business TODO
 // save game state (both boards) in session since its not visible to client DONE
-// save game state in game table in DB for backup TODO
-// add win / fail conditions TODO
+// save game state in game table in DB for backup DONE
+// add win / fail conditions DONE
 // add multiplayer DONE
-// test multiplayer TODO
+// test multiplayer DONE
 // add chat DONE
 // test chat DONE
 // test room creation again DONE
@@ -611,4 +611,4 @@ function removeStartPhaseElements() {
 // redirect users who are not suposed to be in a game room back to lobby TODO
 // redirect to lobby when entring game room that has ended TODO
 
-// SETUP SERVER BEFORE PRESENTATION TODO -- DO THIS NOW
+// SETUP SERVER BEFORE PRESENTATION DONE WOOOO -- DO THIS NOW

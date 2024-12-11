@@ -6,13 +6,14 @@ import session from 'express-session';
 import MySQLStore from 'express-mysql-session';
 import { v4 as genuuid } from 'uuid';
 
-import bodyParser from 'body-parser'
+import bodyParser from 'body-parser';
 
 import dotenv from 'dotenv';
 import http from 'http';
 import {Server} from 'socket.io';
 
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 
 import { GameState } from './server/business/GameState.js';
 
@@ -104,16 +105,79 @@ app.post('/login', (req, res) => {
 });
 
 app.get('/register', (req, res) => {
+    const ip = req.ip || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    const timestamp = Date.now();
+
+    // Combine the details to generate a nonce
+    const rawData = `${ip}-${userAgent}-${timestamp}`;
+    const nonce = crypto.createHash('sha256').update(rawData).digest('hex');
+
+    req.session.nonce = nonce;
+
+    // Send the HTML file with the nonce injected into it
+    res.sendFile(path.join(__dirname, '/frontend/views/register.html'), {
+        headers: {
+            'X-Nonce': nonce, // Optionally send nonce in the header as well
+        },
+    });
     // need custom-token nonce  TODO
-    res.status(200).sendFile(__dirname + '/frontend/views/register.html');
+    res.status(200).send(`
+        <!DOCTYPE html>
+        <html lang="en">
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>Register</title>
+            </head>
+            <body>
+                <h2>Register</h2>
+                <p class="error-message" id="register-error"></p>
+                <form id="register" name="register" action="/register" method="post">
+                    <label for="username">Username:</label><br>
+                    <input type="text" id="username" name="username" /><br>
+                    <label for="email">Email:</label><br>
+                    <input type="email" name="email" id="email"><br>
+                    <label for="password">Password:</label><br>
+                    <input type="text" id="password" name="password" />
+                    <input type="hidden" id="nonce" name="nonce">
+                    <input type="hidden" id="timestamp" name="timestamp">
+                    <br>
+                    <input type="submit" value="Submit" />
+                </form>
+                <script>
+                    // Inject the nonce dynamically into the hidden input field
+                    const nonce = "${nonce}";
+                    const timestamp = ${timestamp};
+
+                    document.getElementById('nonce').value = nonce;
+                    document.getElementById('timestamp').value = timestamp;
+                </script>
+            </body>
+        </html>
+    `);
 });
 
-app.post('/register', async (req,res) => {
-    //need to validate and sanitize TODO
+app.post('/register', async(req, res) => {
+    const { username, email, password, nonce, timestamp } = req.body;
 
-    const username = req.body.username;
-    const password = req.body.password;
-    const email = req.body.email;
+    const expectedNonce = req.session.nonce;
+
+    //console.log(expectedNonce);
+    //console.log(nonce);
+
+    // Validate nonce and timestamp
+    if (nonce !== expectedNonce) {
+        return res.status(400).json({ error: 'Invalid nonce.' });
+    }
+
+    const currentTime = Date.now();
+    const timeDifference = currentTime - timestamp;
+    const MAX_NONCE_AGE = 5 * 60 * 1000; // 5 minutes in milliseconds
+    if (timeDifference > MAX_NONCE_AGE) {
+        return res.status(400).json({ error: 'Nonce expired.' });
+    }
+
 
     const db = new DB();
 
@@ -157,7 +221,10 @@ app.use(isAuth);
 //needs work TODO
 app.get(`/homepage`, (req, res) => {
     if (req.session.user) { //if session set allow access to homepage
-        //see if player is part of a active game TODO
+        //see if player is part of a active game
+        if (req.session.room_id && req.session.room_id != -1) { 
+            return res.status(307).redirect(`/gameroom/${req.session.room_id}`); 
+        }
 
         req.session.room_id = -1; //TODO- look back at
         res.status(200).sendFile(__dirname + `/frontend/views/homepage.html`);
@@ -187,8 +254,15 @@ app.post(`/createGameRoom`, (req, res) => {
 });
 
 //needs work TODO
-app.get(`/gameroom/:room_id`, (req, res) => {
-    //check to make use user is suposed to be in the game room TODO
+app.get(`/gameroom/:room_id`, async(req, res) => {
+    //check to make use user is suposed to be in the game room
+    const db = new DB();
+    const x = await db.getGameState(req.params.room_id);
+    if (x.winner) { return res.status(403).redirect('/home'); } //if game is over redirect to homepage
+    if (req.session.user.id != x.player1_id && req.session.user.id != x.player2_id) {
+        return res.status(403).redirect('/home'); //user is not in this game redirect home
+    }
+
     if (req.session.room_id != req.params.room_id) { req.session.room_id = req.params.room_id; }
     if(req.session.gamestate?.id != req.params.room_id) {
         // add the game state to the users session 
@@ -295,16 +369,19 @@ app.get("/attack", async(req, res) => {
     //TODO
     const index = parseInt(req.query.index, 10);
     const userId = req.session.user.id;
-    const gamestate = req.session.gamestate;
-    const enemyBoard = (gamestate.player1_board.id == userId) ? gamestate.player2_board : gamestate.player1_board;
 
     if(gamestate.playerTurn != userId) { return res.sendStatus(403); } // incorrect user attacking
     
-    //should probably check db to make sure board is correct TODO
+    //pull from db to make sure game state is latest
+    const db = new DB();
+    var x = await db.getGameState(req.room_id).catch(error => console.error(error));
+
+    const gamestate = (x) ? x : req.session.gamestate;
+    const enemyBoard = (gamestate.player1_board.id == userId) ? gamestate.player2_board : gamestate.player1_board;
+
     //should proably check if index has already been attacked TODO
     const hit = enemyBoard.ships.some(ship => ship.includes(index));
 
-    const db = new DB();
     //update gamestate in session and in db
     enemyBoard.attacks.push({index: index, hit: hit});
     if(gamestate.player1_board.id == userId) {
@@ -379,7 +456,6 @@ io.on('connection', (socket) => {
             console.log(`${socket.request.session.user.username} joined roomID: `, roomID);
             io.to(roomID).emit('user list update')
             socket.request.session.room_id = roomID; //set correct room id
-
         }
         //console.log(`Current room ID for ${socket.request.session.user.username}`, roomID);
     });
@@ -395,7 +471,7 @@ io.on('connection', (socket) => {
         socket.to(challengerSocketId).emit('accept', {challengerSocketId: challengerSocketId, opponentSocketId: socket.id, opponentId: socket.request.session.user.id});
     }); 
 
-    //need reject
+    //might need reject
 
     socket.on('chat message', (msg) => {
         console.log(`${socket.request.session.user.username} sent a message to room id: `, socket.request.session.room_id);
