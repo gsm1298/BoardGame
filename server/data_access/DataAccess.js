@@ -19,6 +19,10 @@ export class DB {
         });
     }
 
+    close() {
+        this.con.end();
+    }
+
     /**
      * This function will list all users.
      * 
@@ -355,7 +359,6 @@ export class DB {
     updateGameRoomWinnerById(winnerId, roomId) {
         return new Promise((resolve, reject) => {
             try {
-                console.log("winnderId data: ", winnerId); console.log("roomId data:",roomId);
                 var str = `UPDATE gamerooms SET winner = ? WHERE gameroom_id = ?`;
                 this.con.query(str, [winnerId, roomId], function (err, rows, fields) {
                     if(!err) { resolve(true); } else { reject(err); }

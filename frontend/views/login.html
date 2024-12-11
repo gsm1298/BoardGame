@@ -1,30 +1,80 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Login</title>
-        <!-- Google reCAPTCHA CDN -->
-        <script src=
-            "https://www.google.com/recaptcha/api.js" async defer>
-        </script>
-    </head>
-    <body>
-        <h2>Login</h2>
-        <p class="error-message" id="login-error"></p>
-        <form id="login" name="login" action="/login" method="post">
-            <label for="username">Username:</label><br>
-            <input type="text" id="username" name="username" /><br>
-            <label for="password">Password:</label><br>
-            <input type="password" id="password" name="password" />
-            <br>
-            <!-- div to show reCAPTCHA -->
-            <div class="g-recaptcha" 
-                 data-sitekey="6LeimpgqAAAAAI_1Vj8tA1gMxoZDCHC3ljj7OMgA">
-            </div>
-            <br>
-            <input type="submit" value="Submit" />
-        </form>
-        <a href="/register">Register Here</a>
-    </body>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login</title>
+    <!-- Google reCAPTCHA CDN -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer>
+    </script>
+    <style>
+        .error-message {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Login</h2>
+    <h3 class="error-message" id="login-error"></h3>
+    <form id="login" name="login" action="/login" method="post">
+        <label for="username">Username:</label><br>
+        <input type="text" id="username" name="username" /><br>
+        <label for="password">Password:</label><br>
+        <input type="password" id="password" name="password" />
+        <br>
+        <!-- div to show reCAPTCHA -->
+        <div class="g-recaptcha" data-sitekey="6LeimpgqAAAAAI_1Vj8tA1gMxoZDCHC3ljj7OMgA">
+        </div>
+        <br>
+        <input id="login-btn" type="button" value="Submit" />
+    </form>
+    <a href="/register">Register Here</a>
+
+    <script>
+        const loginButton = document.getElementById("login-btn");
+        loginButton.addEventListener("click", login);
+
+        async function login() {
+            //Grabs user input
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+
+            // Get the reCAPTCHA response token
+            var captchaResponse = grecaptcha.getResponse();
+
+            // Ensure that the reCAPTCHA was completed
+            if (!captchaResponse) {
+                alert("Please complete the reCAPTCHA.");
+                return;
+            }
+
+            try {
+                var res = await fetch('/login', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        username,
+                        password,
+                        captchaResponse
+                    })
+                });
+
+                if (res.status != 200) {
+                    var data = await res.json();
+                    var errorEl = document.getElementById("login-error")
+                    errorEl.innerText = data?.error;
+                    grecaptcha.reset();
+                } else {
+                    window.location = res.url;
+                }
+            } catch (e) {
+                alert("Incorrect username or password");
+                console.error(e);
+            }
+        }
+    </script>
+</body>
+
 </html>

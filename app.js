@@ -92,7 +92,8 @@ app.get('/', (req,res) => {
 app.post('/login', (req, res) => {
     const username = req.body.username;
     const password = req.body.password;
-    const response_key = req.body["g-recaptcha-response"];
+    const response_key = req.body.captchaResponse;
+    //const response_key = req.body["g-recaptcha-response"];
     const secret_key = process.env.recaptchaSecret;
 
     const url = 
@@ -110,18 +111,21 @@ app.post('/login', (req, res) => {
                     .then(async result => {
                         const passCheck = await result.checkLogin(password);
                         
+                        db.close();
+
                         if (passCheck) {
                             req.session.user = result;
                             res.status(200).redirect(`/homepage`);
                         } else {
-                            res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
+                            res.status(400).json({error: "Incorrect Username or Passowrd"});
                         }
                     }).catch(error => {
+                        db.close();
                         console.error("getUserByUsername Error: ", error);
-                        res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
+                        res.status(400).json({error: "Incorrect Username or Passowrd"});
                     });
             } else {
-                return res.status(401).redirect('/login');
+                return res.status(401).json({error: "Captcha Needed"});
             }
         }).catch((error) => {
           return res.json({ error });
@@ -201,16 +205,19 @@ app.post('/register', async(req, res) => {
     const db = new DB();
 
     //check to make sure user name does not exist in DB
-    var user = await db.getUserByUsername(username).catch(error => { console.error('error in getUserByUsername:', error); return res.sendStatus(500); });
+    var user = await db.getUserByUsername(username).catch(error => { db.close(); console.error('error in getUserByUsername:', error); return res.sendStatus(500); });
 
-    if (user) { return res.status(409).send(`<h2>Username already in use.</h2><a href="/register">Try Again</a>`); }
+    if (user) { db.close(); return res.status(409).send(`<h2>Username already in use.</h2><a href="/register">Try Again</a>`); }
 
     const hashedPass  = await bcrypt.hash(password, 10);
 
     var createdUserId = await db.CreateUser(username, email, hashedPass)
         .catch(error => {
+            db.close();
             console.error('error when Creating User: ', error);
         });
+
+        db.close();
 
     if (createdUserId) { res.status(201).redirect('/'); }
     else { res.status(500).redirect('/register'); }
@@ -258,15 +265,17 @@ app.post(`/createGameRoom`, (req, res) => {
     db.CreateGameRoom(req.session.user.id, req.body.opponentId).then( result => {
         //console.log(result);
         if (result) { req.session.room_id = result; }
-        else { return res.sendStatus(500); }
+        else { db.close(); return res.sendStatus(500); }
 
         // send game room id to opponant so they can join
         io.to(req.body.opponentSocketId).emit('gameroom created', req.session.room_id);
 
         req.session.gamestate = new GameState(req.session.room_id, req.session.user.id, req.body.opponentId);
 
+        db.close();
         res.status(200).json({url: `/gameroom/${req.session.room_id}`});
     }).catch(error => {
+        db.close();
         console.error("createGameRoom Error: ", error);
         return res.sendStatus(500);
     });
@@ -277,8 +286,9 @@ app.get(`/gameroom/:room_id`, async(req, res) => {
     //check to make use user is suposed to be in the game room
     const db = new DB();
     const x = await db.getGameState(req.params.room_id);
-    if (x.winner) { req.session.room_id = -1; return res.status(403).redirect('/homepage'); } //if game is over redirect to homepage
+    if (x.winner) { req.session.room_id = -1; db.close(); return res.status(403).redirect('/homepage'); } //if game is over redirect to homepage
     if (req.session.user.id != x.player1_id && req.session.user.id != x.player2_id) {
+        db.close();
         return res.status(403).redirect('/homepage'); //user is not in this game redirect home
     }
 
@@ -290,6 +300,7 @@ app.get(`/gameroom/:room_id`, async(req, res) => {
         //console.log(`${req.session.user.username}: `, req.session.gamestate);
     } //else dont reset incase of refresh or reconnect
 
+    db.close();
     res.status(200).sendFile(__dirname + `/frontend/views/gameroom.html`);
 });
 
@@ -298,6 +309,7 @@ app.post(`/readyUp/:room_id`, async (req,res) => {
     const db = new DB();
     const temp = await db.getGameState(req.params.room_id);
     if (req.session.user.id != temp.player1_id && req.session.user.id != temp.player2_id) {
+        db.close();
         return res.status(403).redirect('/homepage'); //user is not in this game redirect home
     }
 
@@ -305,7 +317,7 @@ app.post(`/readyUp/:room_id`, async (req,res) => {
     const gamestate = req.session.gamestate;
     const user = req.session.user;
 
-    if(gamestate.id != req.params.room_id) { return res.sendStatus(400); } // the room_id the request is being sent from is not the same as what its supposed to go to
+    if(gamestate.id != req.params.room_id) { db.close(); return res.sendStatus(400); } // the room_id the request is being sent from is not the same as what its supposed to go to
 
     if (gamestate.player1_id 
         && user.id == gamestate.player1_id) 
@@ -321,9 +333,10 @@ app.post(`/readyUp/:room_id`, async (req,res) => {
         gamestate.player2_board.id = user.id;
         gamestate.player2_board.ships = req.body.playerShips; 
     }
-    else { return res.sendStatus(400); }
+    else { db.close(); return res.sendStatus(400); }
 
-    var x = await db.updateGameRoomReadyState(gamestate).catch(error => { console.error('error in updateGameRoomReadyState:', error); return res.sendStatus(500) } );
+    var x = await db.updateGameRoomReadyState(gamestate).catch(error => { db.close(); console.error('error in updateGameRoomReadyState:', error); return res.sendStatus(500) } );
+    db.close()
 
     req.session.gamestate = gamestate;
 
@@ -335,8 +348,9 @@ app.get('/gamePhase', async(req,res) =>{
     // check if player has access
     const db = new DB(); 
     
-    var currentGamestate = await db.getGameState(req.session.room_id).catch(error => { console.error('error in getGameState:', error); return res.sendStatus(500); });
+    var currentGamestate = await db.getGameState(req.session.room_id).catch(error => { db.close(); console.error('error in getGameState:', error); return res.sendStatus(500); });
     if (req.session.user.id != currentGamestate.player1_id && req.session.user.id != currentGamestate.player2_id) {
+        db.close();
         return res.status(403).redirect('/homepage'); //user is not in this game redirect home
     }
 
@@ -364,9 +378,9 @@ app.get('/gamePhase', async(req,res) =>{
             // check if there are attacks on either player board, if there are this would mean the game was being played
             if (gamestate.player1_board.attacks.length == 0 && gamestate.player2_board.attacks.length == 0) {
                 // if no attacks found
-                var x = await db.updateGameRoomPlayerTurn(gamestate).catch(error => { console.error('error in updateGameRoomPlayerTurn:', error); return res.sendStatus(500); });
-                if(x) { req.session.gamestate.playerTurn = gamestate.player1_id; } else { return res.sendStatus(500); } // error updating player turn in db
-            } else { return res.sendStatus(500); } // there was a server issue that unset the player_turn LOOK BACK AT TODO
+                var x = await db.updateGameRoomPlayerTurn(gamestate).catch(error => { db.close(); console.error('error in updateGameRoomPlayerTurn:', error); return res.sendStatus(500); });
+                if(x) { req.session.gamestate.playerTurn = gamestate.player1_id; } else { db.close(); return res.sendStatus(500); } // error updating player turn in db
+            } else { db.close(); return res.sendStatus(500); } // there was a server issue that unset the player_turn LOOK BACK AT TODO
         }
 
         // if there is a playerTurn set send back the current relavent info to the client about the gamestate
@@ -393,14 +407,15 @@ app.get('/gamePhase', async(req,res) =>{
 
 app.get("/attack", async(req, res) => {
     const db = new DB();
-    const temp = await db.getGameState(req.session.room_id).catch(error => console.error(error));
+    const temp = await db.getGameState(req.session.room_id).catch(error => { console.error(error); });
     if (req.session.user.id != temp.player1_id && req.session.user.id != temp.player2_id) {
+        db.close();
         return res.status(403).redirect('/homepage'); //user is not in this game redirect home
     }
     const index = parseInt(req.query.index, 10);
     const userId = req.session.user.id;
 
-    if(temp.playerTurn != userId) { return res.sendStatus(403); } // incorrect user attacking
+    if(temp.playerTurn != userId) { db.close(); return res.sendStatus(403); } // incorrect user attacking
     
     //set var based on what was pulled from db to make sure game state is latest
 
@@ -418,7 +433,7 @@ app.get("/attack", async(req, res) => {
     } else {
         gamestate.player1_board.attacks =  enemyBoard.attacks;
     }
-    var x = await db.updateGameRoomAfterPlayerTurn(gamestate).catch( error => { console.error('error in updateGameRoomAfterTurn:', error); return res.sendStatus(500); });
+    var x = await db.updateGameRoomAfterPlayerTurn(gamestate).catch( error => { console.error('error in updateGameRoomAfterTurn:', error); db.close(); return res.sendStatus(500); });
 
     const flattenedShips = enemyBoard.ships.flat();
     const attackIndices = enemyBoard.attacks.map(attack => attack.index);
@@ -434,6 +449,7 @@ app.get("/attack", async(req, res) => {
             req.session.gamestate.winner = req.session.user.id;
 
             var i = await db.updateGameRoomWinner(req.session.gamestate);
+            db.close();
             if(i) {
                 io.to(parseInt(req.session.room_id)).emit('player has won', {gamestate: req.session.gamestate, username: req.session.user.username});
                 return res.status(200).json({hit});
@@ -474,8 +490,8 @@ app.get(`/getChatHistory`, (req, res) => {
 
     //get chat log for room from db
     db.getChatLog(req.session.room_id)
-        .then(logs => res.status(200).json({messages: logs}))
-    .catch(error => { console.error(error); res.sendStatus(500) });
+        .then(logs => { db.close(); res.status(200).json({messages: logs}); })
+    .catch(error => { db.close(); console.error(error); res.sendStatus(500) });
 });
 
 io.on('connection', (socket) => {
@@ -520,7 +536,8 @@ io.on('connection', (socket) => {
         
         //inset the message into the chatlog in the db
         const db = new DB()
-        db.CreateChatLogInDB(socket.request.session.room_id, socket.request.session.user.id, msg).catch(error => console.error(error));
+        db.CreateChatLogInDB(socket.request.session.room_id, socket.request.session.user.id, msg).catch(error => { db.close(); console.error(error); });
+        db.close();
     });
 
     socket.on('start game', () => {
@@ -535,17 +552,17 @@ io.on('connection', (socket) => {
         
         //pull gamestate from db to be sure its correct
         const gamestate = await db.getGameState(socket.request.session.room_id).catch(error => console.log(error));
-        
+
         var winnerId = null;
         if (gamestate.player1_id == socket.request.session.user.id) {winnerId = gamestate.player2_id;}
         else {winnerId = gamestate.player1_id;}
 
-        console.log("winnerId app: ", winnerId);
         db.updateGameRoomWinnerById(winnerId, socket.request.session.room_id)
         .then(res => {
             //only emit once db is updated
             io.to(parseInt(socket.request.session.room_id)).emit('player gave up', socket.request.session.user.username);
-        }).catch(error => { console.error(error)});
+            db.close();
+        }).catch(error => { db.close(); console.error(error); });
     });
 });
 server.listen(3000, () => {
