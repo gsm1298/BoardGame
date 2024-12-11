@@ -235,6 +235,7 @@ function gameEndSetup() {
 function displayWinPopup() {
   const winPopUp = document.createElement("div");
   winPopUp.setAttribute("id", "end-popup");
+  winPopUp.setAttribute("class", "popup");
   const header = document.createElement("h1")
   header.innerText = `${userName} Has Won!`;
   const button = document.createElement("button");
@@ -254,6 +255,7 @@ function displayWinPopup() {
 function displayGiveUpPopup() {
   const giveup = document.createElement("div");
   giveup.setAttribute("id", "giveup-popup");
+  giveup.setAttribute("class", "popup");
   const header = document.createElement("h1")
   header.innerText = `${userName} Has Given Up.`;
   const button = document.createElement("button");
