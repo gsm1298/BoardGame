@@ -30,7 +30,20 @@ fetch(`/gamePhase`)
   //give up event handler
   document.getElementById("give-up-btn").addEventListener('click', function() {
     socket.emit('give up');
-  });
+});
+
+// when both players are ready to start
+socket.on('start game', function() {
+  fetch(`/gamePhase`)
+  .then(res => res.json())
+  .then(data => {
+    gamePhase = data.phase;
+    gamestate = (gamePhase != 'Setup') ? data.gamestate : null;
+    userID = (gamePhase != 'Setup') ? data.userId : null;
+    // Initialize the game in the correct phase and state
+    initializeGame();
+  }).catch(error => {console.error('erorr when calling getGamePhase:', error)});
+});
 
 // when a player finish their turn rerun gamePhase
 socket.on('player finished turn', function() {
@@ -516,7 +529,7 @@ function setupEventListeners() {
               fetch(`/gamePhase`)
                 .then(res => res.json())
                 .then(data => {
-                  console.log(data); // now make it start the game when the started resposne is sent. make sure to send a socket emit out to make the other player do the same
+                  if(data.phase == 'Started') { socket.emit('start game'); }
                 }).catch(error => {console.error('erorr when calling getGamePhase:', error)})
             }
         })

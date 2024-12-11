@@ -19,7 +19,6 @@ import { GameState } from './server/business/GameState.js';
 //Remove later TODO
 import {DB} from './server/data_access/DataAccess.js';
 import { Board } from './server/business/Board.js';
-import { error } from 'console';
 //import {User} from './server/business/User.js';
 
 const app = express();
@@ -292,9 +291,6 @@ app.get('/gamePhase', async(req,res) =>{
 });
 
 // game testing TODO
-const BOARD_SIZE = 10;
-const SHIPS = [5, 4, 3, 3, 2]; // Ship lengths
-  
 app.get("/attack", async(req, res) => {
     //TODO
     const index = parseInt(req.query.index, 10);
@@ -347,11 +343,6 @@ app.get("/attack", async(req, res) => {
         res.sendStatus(500);
     }
 });
-  
-function isValidShip(ship, existingShips) {
-    // Ensure ship doesn't overlap with existing ships
-     return !existingShips.flat().some(cell => ship.includes(cell));
-}
 
 //testing TODO look back at
 app.get(`/getUsers`, (req, res) => {
@@ -412,6 +403,10 @@ io.on('connection', (socket) => {
         //console.log(socket.rooms);
     });
 
+    socket.on('start game', () => {
+        console.log(`starting game in room: ${socket.request.session.room_id}`);
+        io.to(parseInt(socket.request.session.room_id)).emit('start game');
+    });
 
     socket.on('give up', async () => {
         console.log(`${socket.request.session.user.username} has given up in room ${socket.request.session.room_id}`);
