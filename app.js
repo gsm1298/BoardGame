@@ -15,12 +15,13 @@ import {Server} from 'socket.io';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 
+import 'isomorphic-fetch';
+
 import { GameState } from './server/business/GameState.js';
 
 //Remove later TODO
 import {DB} from './server/data_access/DataAccess.js';
 import { Board } from './server/business/Board.js';
-import { error } from 'console';
 //import {User} from './server/business/User.js';
 
 const app = express();
@@ -85,23 +86,42 @@ app.get('/', (req,res) => {
 app.post('/login', (req, res) => {
     const username = req.body.username;
     const password = req.body.password;
-    
-    // still needs work TODO
-    const db = new DB();
-    db.getUserByUsername(username)
-        .then(async result => {
-            //console.log(result.passwordHash);
-            const passCheck = await result.checkLogin(password);
-            
-            if (passCheck) {
-                req.session.user = result;
-                res.status(200).redirect(`/homepage`);
+    const response_key = req.body["g-recaptcha-response"];
+    const secret_key = process.env.recaptchaSecret;
+
+    const url = 
+    `https://www.google.com/recaptcha/api/siteverify?
+    secret=${secret_key}&response=${response_key}`;
+
+    // Make post to veriy captcha
+    fetch(url, {
+        method: "post",
+    })
+        .then((response) => response.json())
+        .then((google_response) => {
+            console.log(google_response);
+            if (google_response.success == true) {
+                const db = new DB();
+                db.getUserByUsername(username)
+                    .then(async result => {
+                        const passCheck = await result.checkLogin(password);
+                        
+                        if (passCheck) {
+                            req.session.user = result;
+                            res.status(200).redirect(`/homepage`);
+                        } else {
+                            res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
+                        }
+                    }).catch(error => {
+                        console.error("getUserByUsername Error: ", error);
+                        res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
+                    });
             } else {
-                res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
+                console.log('yes');
+                return res.status(401).redirect('/login');
             }
-        }).catch(error => {
-            console.error("getUserByUsername Error: ", error);
-            res.status(400).send(`<h2>Invalid Username or Password.</h2><a href="/">Try Again</a>`);
+        }).catch((error) => {
+          return res.json({ error });
         });
 });
 

@@ -4,6 +4,10 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Login</title>
+        <!-- Google reCAPTCHA CDN -->
+        <script src=
+            "https://www.google.com/recaptcha/api.js" async defer>
+        </script>
     </head>
     <body>
         <h2>Login</h2>
@@ -13,6 +17,11 @@
             <input type="text" id="username" name="username" /><br>
             <label for="password">Password:</label><br>
             <input type="password" id="password" name="password" />
+            <br>
+            <!-- div to show reCAPTCHA -->
+            <div class="g-recaptcha" 
+                 data-sitekey="6LfgkZgqAAAAAKE0DGu6zxTgM_mJoSqcxxDixrpJ">
+            </div>
             <br>
             <input type="submit" value="Submit" />
         </form>
