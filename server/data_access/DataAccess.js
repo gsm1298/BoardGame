@@ -81,38 +81,18 @@ export class DB {
     /**
      * This function will grab a user's information.
      * @param {number} userId - A user's ID number.
-     * @returns {Array} - An array with the user's information.
+     * @returns {User} - A user object
      */
     getUserById(userId) {
         return new Promise((resolve, reject) => {
             try {
                 var str =
-                    "SELECT DISTINCT users.id,users.username,users.password,users.name,users.type, " +
-                    "organizations.organizationid, organizations.name AS organizationName " +
-                    "FROM users " +
-                    "JOIN users_organizations ON users.id = users_organizations.userid " +
-                    "JOIN organizations ON users_organizations.userid = users.id " +
-                    "WHERE users.id = ?";
+                    "SELECT * FROM users WHERE id = ?";
 
                 this.con.query(str, [userId], function (err, rows, fields) {
                     if (!err) {
-                        var out = [];
-                        rows.every(row => {
-                            if (out.length === 0) {
-                                out.push(new User(row.id, row.username, row.password, row.name, row.type,
-                                    [new Organization(row.organizationid, row.organizationName)])
-                                );
-                                //keep iterating
-                                return true;
-                            } else {
-                                //add aditional organizations to users orginiation array
-                                out[0]['organizations'].push(new Organization(row.organizationid, row.organizationName));
-                                //keep iterating
-                                return true;
-                            }
-                        });
-
-                        resolve(out);
+                        var row = rows[0]
+                        resolve(new User(row.id,row.username,row.email, null, row.create_time));
                     } else {
                         reject(err);
                     }

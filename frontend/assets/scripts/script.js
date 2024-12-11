@@ -593,4 +593,7 @@ function removeStartPhaseElements() {
 // add attack svg animation when attacking or getting attacked TODO
 // add hit (explotion/fire) and miss (splash) svg animation TODO
 
-// SETUP SERVER BEFORE PRESENTATION TODO
+// redirect users who are not suposed to be in a game room back to lobby TODO
+// redirect to lobby when entring game room that has ended TODO
+
+// SETUP SERVER BEFORE PRESENTATION TODO -- DO THIS NOW
