@@ -22,6 +22,7 @@ import { GameState } from './server/business/GameState.js';
 //Remove later TODO
 import {DB} from './server/data_access/DataAccess.js';
 import { Board } from './server/business/Board.js';
+import { error } from 'console';
 //import {User} from './server/business/User.js';
 
 const app = express();
@@ -443,23 +444,33 @@ app.get("/attack", async(req, res) => {
     }
 });
 
-//testing TODO look back at
 app.get(`/getUsers`, (req, res) => {
     const clients = io.sockets.adapter.rooms.get(-1);
 
-    if (!clients) { return res.sendStatus(204)} //if no clients return without sending playerList
-
     var players = [];
 
-    for (const clientId of clients.values() ) {
-        const clientSocket = io.sockets.sockets.get(clientId);
-        const clientSession = clientSocket.request.session;
-        if (clientSession.user.id != req.session.user.id) { // keep yourself out of the player list
-            players.push({socketID: clientSocket.id, clientName: clientSession.user.username});
+    if (clients){
+        for (const clientId of clients.values() ) {
+            const clientSocket = io.sockets.sockets.get(clientId);
+            const clientSession = clientSocket.request.session;
+            if (clientSession.user.id != req.session.user.id) { // keep yourself out of the player list
+                players.push({socketID: clientSocket.id, clientName: clientSession.user.username});
+            }
         }
     }
 
     res.status(200).json({playerList: players}); 
+});
+
+app.get(`/getChatHistory`, (req, res) => {
+    const db = new DB();
+    const roomId = req.session.room_id;
+    if(!roomId) { console.error(`no room id set for`, req.session.user.username); return res.sendStatus(400); }
+
+    //get chat log for room from db
+    db.getChatLog(req.session.room_id)
+        .then(logs => res.status(200).json({messages: logs}))
+    .catch(error => { console.error(error); res.sendStatus(500) });
 });
 
 io.on('connection', (socket) => {
@@ -496,9 +507,13 @@ io.on('connection', (socket) => {
     //might need reject
 
     socket.on('chat message', (msg) => {
+        //need to sanitize message TODO
         console.log(`${socket.request.session.user.username} sent a message to room id: `, socket.request.session.room_id);
-        io.to(parseInt(socket.request.session.room_id)).emit('chat message', socket.request.session.user.username + ': ' + msg);
-        //console.log(socket.rooms);
+        io.to(parseInt(socket.request.session.room_id)).emit('chat message', {username: socket.request.session.user.username, message: msg});
+        
+        //inset the message into the chatlog in the db
+        const db = new DB()
+        db.CreateChatLogInDB(socket.request.session.room_id, socket.request.session.user.id, msg).catch(error => console.error(error));
     });
 
     socket.on('start game', () => {

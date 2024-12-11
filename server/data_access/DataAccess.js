@@ -128,7 +128,6 @@ export class DB {
         });
     }
 
-
     /**
      * Creates a gameroom
      * @param {int} playerId - the users id
@@ -151,8 +150,55 @@ export class DB {
         });
     }
 
+    /**
+     * Creates an entry in the chat log
+     * @param {int} roomId - the id of the room the message is from
+     * @param {int} userId - the id of the user that sent the message
+     * @param {String} message - the message text of that was sent
+     * @returns - returns the inserted id or false if it does not succeed
+     */
+    CreateChatLogInDB(roomId, userId, message) {
+        return new Promise((resolve, reject) => {
+            try {
+                var str = `INSERT INTO chat_logs (room_id, user_id, message) values(?, ?, ?)`;
+                this.con.query(str, [roomId, userId, message], function (err, rows, fields) {
+                    if (!err) {
+                        resolve(rows.insertId);
+                    } else {
+                        resolve(false);
+                    }
+                });
+            } catch (error) {
+                resolve(false);
+            }
+        });
+    }
+
+     /**
+     * Gets the chat log for a given room id
+     * @param {int} - the id of the room the chat logs are being selected for
+     * @return {Array[Object]} - an array of message objects
+     */
+    getChatLog(roomId) {
+        return new Promise((resolve, reject) => {
+            try {
+                var str = `SELECT chat_logs.user_id, users.username, chat_logs.message, chat_logs.timestamp 
+                FROM chat_logs LEFT JOIN users ON chat_logs.user_id = users.user_id  WHERE room_id = ?`;
+                this.con.query(str, [roomId], function(err,rows,fields) {
+                    if (!err) {
+                        var out = []
+                        for(var i = 0; i < rows.length; i++) {
+                            var log = rows[i]
+                            out.push({userID: log.user_id, username: log.username, message: log.message, timestamp: log.timestamp});
+                        }
+                        resolve(out);
+                    } else { reject(err); }
+                });
+            } catch(error) { reject(error); }
+        });
+    }
+
     // add validation next -- still need some 
-    // add chat logging function next
 
     /**
      * Gets the current gameroom info from db

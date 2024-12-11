@@ -589,7 +589,7 @@ function removeStartPhaseElements() {
 // add chat DONE
 // test chat DONE
 // test room creation again DONE
-// make chat logs in DB TODO
+// make chat logs in DB DOEN
 // add sanitization middleware to snitize all input TODO
 // add validation middleware to validate that input is what is exppected TODO
 /* add auth middleware to make sure the user is authenticated before allow access 

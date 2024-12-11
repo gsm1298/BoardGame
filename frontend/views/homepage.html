@@ -44,6 +44,7 @@
             fetch('/getUsers')
                 .then(res => res.json())
                 .then(data => {
+                    if(!data?.playerList) { return; } //no users
                     for(var x = 0; x < data.playerList.length; x++) {
                         const player = data.playerList[x];
                         //console.log(player);
@@ -58,18 +59,6 @@
                 })
                 .catch(error => { console.error('erorr when calling fetchUsers: ', error); });
 
-            var messages = document.getElementById('messages');
-            var form = document.getElementById('form');
-            var input = document.getElementById('input');
-
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                if (input.value) {
-                    socket.emit('chat message', input.value);
-                    input.value = '';
-                }
-            });
-
             document.getElementById('logout-btn').addEventListener('click', function () {
                 fetch('/logout', {
                     method: 'POST'})
@@ -82,13 +71,6 @@
                         }
                     })
                     .catch(error => console.error('Error:', error));
-            });
-
-            socket.on('chat message', function(msg) {
-                var item = document.createElement('li');
-                item.textContent = msg;
-                messages.appendChild(item);
-                messages.scrollTop = messages.scrollHeight;
             });
 
             socket.on('user list update', function() {
@@ -152,12 +134,12 @@
                 .catch(error => { console.error('erorr when calling createGameRoom: ', error); });
             });
 
-
             socket.on('gameroom created', function(roomId) {
                 //redirect to gameroom
                 window.location = `/gameroom/${roomId}`;
             });
 
         </script>
+        <script src="../assets/scripts/chat.js"></script>
     </body>
 </html>
