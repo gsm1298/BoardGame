@@ -8,10 +8,11 @@ export class DB {
     constructor(con = mysql) {
         //change database credentials
         this.con = mysql.createConnection({
-            host: "localhost",
-            user: "root",
-            password: "Penny10187Bruno10187",
-            database: "442"
+            host: process.env.host,
+            port: process.env.port,
+            user: process.env.user,
+            password: process.env.password,
+            database: process.env.database
         });
         this.con.connect(function (err) {
             if (err) throw err;

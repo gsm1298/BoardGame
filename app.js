@@ -8,6 +8,7 @@ import { v4 as genuuid } from 'uuid';
 
 import bodyParser from 'body-parser'
 
+import dotenv from 'dotenv';
 import http from 'http';
 import {Server} from 'socket.io';
 
@@ -39,16 +40,18 @@ app.use(express.urlencoded({extended: true}));
 
 app.use(bodyParser.json());
 
+dotenv.config();
 
 // move or put in a file TODO
 const options = 
 {
-    host: 'localhost',
-    port: 3306,
-    user: 'root',
-    password: 'Penny10187Bruno10187',
-    database: '442'
+    host: process.env.host,
+    port: process.env.port,
+    user: process.env.user,
+    password: process.env.password,
+    database: process.env.database
 };
+
 
 const mySQLStore = MySQLStore(session);
 const sessionStore = new mySQLStore(options);
