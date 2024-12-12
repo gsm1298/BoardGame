@@ -1,7 +1,7 @@
 //DataAccessLayer
 
 import mysql from 'mysql2';
-import {User} from '../business/User.js';
+import { User } from '../business/User.js';
 import { GameState } from '../business/GameState.js';
 
 export class DB {
@@ -97,7 +97,7 @@ export class DB {
                 this.con.query(str, [userId], function (err, rows, fields) {
                     if (!err) {
                         var row = rows[0]
-                        resolve(new User(row.id,row.username,row.email, null, row.create_time));
+                        resolve(new User(row.id, row.username, row.email, null, row.create_time));
                     } else {
                         reject(err);
                     }
@@ -178,27 +178,27 @@ export class DB {
         });
     }
 
-     /**
-     * Gets the chat log for a given room id
-     * @param {int} - the id of the room the chat logs are being selected for
-     * @return {Array[Object]} - an array of message objects
-     */
+    /**
+    * Gets the chat log for a given room id
+    * @param {int} - the id of the room the chat logs are being selected for
+    * @return {Array[Object]} - an array of message objects
+    */
     getChatLog(roomId) {
         return new Promise((resolve, reject) => {
             try {
                 var str = `SELECT chat_logs.user_id, users.username, chat_logs.message, chat_logs.timestamp 
                 FROM chat_logs LEFT JOIN users ON chat_logs.user_id = users.user_id  WHERE room_id = ?`;
-                this.con.query(str, [roomId], function(err,rows,fields) {
+                this.con.query(str, [roomId], function (err, rows, fields) {
                     if (!err) {
                         var out = []
-                        for(var i = 0; i < rows.length; i++) {
+                        for (var i = 0; i < rows.length; i++) {
                             var log = rows[i]
-                            out.push({userID: log.user_id, username: log.username, message: log.message, timestamp: log.timestamp});
+                            out.push({ userID: log.user_id, username: log.username, message: log.message, timestamp: log.timestamp });
                         }
                         resolve(out);
                     } else { reject(err); }
                 });
-            } catch(error) { reject(error); }
+            } catch (error) { reject(error); }
         });
     }
 
@@ -213,7 +213,7 @@ export class DB {
         return new Promise((resolve, reject) => {
             try {
                 var str = `SELECT * FROM gamerooms WHERE gameroom_id = ?`;
-                this.con.query(str, [roomId], function(err,rows,fields) {
+                this.con.query(str, [roomId], function (err, rows, fields) {
                     if (!err) {
                         var row = rows[0];
 
@@ -221,12 +221,12 @@ export class DB {
                         var p1_board = row.player1_board ? JSON.parse(row.player1_board) : null;
                         var p2_board = row.player2_board ? JSON.parse(row.player2_board) : null;
                         // create gamestate object with info
-                        var gamestate = new GameState(roomId, row.player1_id, row.player2_id, 
-                            p1_board, p2_board, row.player1_ready, row.player2_ready,row.player_turn, row.winner);
+                        var gamestate = new GameState(roomId, row.player1_id, row.player2_id,
+                            p1_board, p2_board, row.player1_ready, row.player2_ready, row.player_turn, row.winner);
                         resolve(gamestate);
                     } else { reject(err); }
                 });
-            } catch(error) { reject(error); }
+            } catch (error) { reject(error); }
         });
     }
 
@@ -239,22 +239,22 @@ export class DB {
         return new Promise((resolve, reject) => {
             try {
                 var str = `UPDATE gamerooms SET `;
-                if (gamestate?.player1_id) { 
+                if (gamestate?.player1_id) {
                     var board = JSON.stringify(gamestate.player1_board); //stringify the board object
-                    str += `player1_board = ?, player1_ready = ? WHERE gameroom_id = ?`; 
-                    this.con.query(str, [board, gamestate.player1_ready, gamestate.id], function(err, rows, fields) {
-                        if(!err) { resolve(true); } else { reject(err); }
+                    str += `player1_board = ?, player1_ready = ? WHERE gameroom_id = ?`;
+                    this.con.query(str, [board, gamestate.player1_ready, gamestate.id], function (err, rows, fields) {
+                        if (!err) { resolve(true); } else { reject(err); }
                     });
                 }
-                else if (gamestate?.player2_id) { 
+                else if (gamestate?.player2_id) {
                     var board = JSON.stringify(gamestate.player2_board); //stringify the board object
-                    str +='player2_board = ?, player2_ready = ? WHERE gameroom_id = ?'; 
-                    this.con.query(str, [board, gamestate.player2_ready, gamestate.id], function(err, rows, fields) {
-                        if(!err) { resolve(true); } else { reject(err); }
+                    str += 'player2_board = ?, player2_ready = ? WHERE gameroom_id = ?';
+                    this.con.query(str, [board, gamestate.player2_ready, gamestate.id], function (err, rows, fields) {
+                        if (!err) { resolve(true); } else { reject(err); }
                     });
                 }
                 else { return reject('Gamestate does not have either player set'); }
-            } catch(error) { reject(error); }
+            } catch (error) { reject(error); }
         });
     }
 
@@ -269,7 +269,7 @@ export class DB {
                 var lastPlayerTurn = gamestate?.playerTurn;
                 var nextPlayerTurn = null;
 
-                switch(lastPlayerTurn){
+                switch (lastPlayerTurn) {
                     case null:
                         // no last turn so defualt to player 1
                         nextPlayerTurn = gamestate.player1_id;
@@ -283,12 +283,12 @@ export class DB {
                         nextPlayerTurn = gamestate.player1_id;
                         break;
                 }
-                
+
                 var str = `UPDATE gamerooms SET player_turn = ? WHERE gameroom_id = ?`;
-                this.con.query(str, [nextPlayerTurn, gamestate.id], function(err, rows, fields) {
-                    if(!err) { resolve(true); } else { reject(err); }
+                this.con.query(str, [nextPlayerTurn, gamestate.id], function (err, rows, fields) {
+                    if (!err) { resolve(true); } else { reject(err); }
                 });
-            } catch(error) { reject(error); }
+            } catch (error) { reject(error); }
         });
     }
 
@@ -305,7 +305,7 @@ export class DB {
                 var enemyBoard = null
                 var boardStr = null;
 
-                switch(lastPlayerTurn){
+                switch (lastPlayerTurn) {
                     case null:
                         // no last turn so defualt to player 1
                         nextPlayerTurn = gamestate.player1_id;
@@ -325,12 +325,12 @@ export class DB {
                         boardStr = 'player1_board';
                         break;
                 }
-                
+
                 var str = `UPDATE gamerooms SET ${boardStr} = ?, player_turn = ? WHERE gameroom_id = ?`;
-                this.con.query(str, [enemyBoard, nextPlayerTurn, gamestate.id], function(err, rows, fields) {
-                    if(!err) { resolve(true); } else { reject(err); }
+                this.con.query(str, [enemyBoard, nextPlayerTurn, gamestate.id], function (err, rows, fields) {
+                    if (!err) { resolve(true); } else { reject(err); }
                 });
-            } catch(error) { reject(error); }
+            } catch (error) { reject(error); }
         });
     }
 
@@ -344,9 +344,9 @@ export class DB {
             try {
                 var str = `UPDATE gamerooms SET winner = ? WHERE gameroom_id = ?`;
                 this.con.query(str, [gamestate.winner, gamestate.id], function (err, rows, fields) {
-                    if(!err) { resolve(true); } else { reject(err); }
+                    if (!err) { resolve(true); } else { reject(err); }
                 });
-            } catch(error) { reject(error); }
+            } catch (error) { reject(error); }
         });
     }
 
@@ -361,9 +361,9 @@ export class DB {
             try {
                 var str = `UPDATE gamerooms SET winner = ? WHERE gameroom_id = ?`;
                 this.con.query(str, [winnerId, roomId], function (err, rows, fields) {
-                    if(!err) { resolve(true); } else { reject(err); }
+                    if (!err) { resolve(true); } else { reject(err); }
                 });
-            } catch(error) { reject(error); }
+            } catch (error) { reject(error); }
         });
     }
 }

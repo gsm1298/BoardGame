@@ -1,145 +1,150 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Homepage</title>
-        <link rel="stylesheet" href="../assets/styles/home.css">
-    </head>
-    <body>
-        <div id="logout-container">
-            <button id="logout-btn">Logout</button>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Homepage</title>
+    <link rel="stylesheet" href="../assets/styles/home.css">
+</head>
+
+<body>
+    <div id="logout-container">
+        <button id="logout-btn">Logout</button>
+    </div>
+    <div id="content-container">
+        <div id="player-container">
+            <h3>Player List</h3>
+            <ul id="playerList"></ul>
         </div>
-        <div id="content-container">
-            <div id="player-container">
-                <h3>Player List</h3>
-                <ul id="playerList"></ul>
-            </div>
-            <div id="message-container">
-                <h3>Chat</h3>
-                <ul id="messages"></ul>
-                <form id="form" action="">
-                    <input id="input" autocomplete="off" /><button>Send</button>
-                </form>
-            </div>
+        <div id="message-container">
+            <h3>Chat</h3>
+            <ul id="messages"></ul>
+            <form id="form" action="">
+                <input id="input" autocomplete="off" /><button>Send</button>
+            </form>
         </div>
+    </div>
 
-        <div id="challenge-popup">
-            <div>
-                <h3>Challenged</h3>
-                <p>You Have been Challenged by: <span></span></p>
-                <div><button id="acceptBtn" type="button">Accept</button><button id="declineBtn" type="button">Decline</button></div>
-            </div>
-            <input type="hidden" id="id">
+    <div id="challenge-popup">
+        <div>
+            <h3>Challenged</h3>
+            <p>You Have been Challenged by: <span></span></p>
+            <div><button id="acceptBtn" type="button">Accept</button><button id="declineBtn"
+                    type="button">Decline</button></div>
         </div>
+        <input type="hidden" id="id">
+    </div>
 
-        <script src="/socket.io/socket.io.js"></script>
-        <script>
-            var socket = io.connect();
-            socket.emit('joinRoom', -1);
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        var socket = io.connect();
+        socket.emit('joinRoom', -1);
 
-            // make the player list
-            var playerList = document.getElementById('playerList');
+        // make the player list
+        var playerList = document.getElementById('playerList');
 
-            fetch('/getUsers')
-                .then(res => res.json())
-                .then(data => {
-                    if(!data?.playerList) { return; } //no users
-                    for(var x = 0; x < data.playerList.length; x++) {
-                        const player = data.playerList[x];
-                        //console.log(player);
-                        var el = document.createElement('li');
-                        el.textContent = player.clientName;
-                        el.dataset = player.socketID;
-                        el.addEventListener('click', function(e) {
-                            socket.emit('challenge', player.socketID)
-                        });
-                        playerList.appendChild(el);
+        fetch('/getUsers')
+            .then(res => res.json())
+            .then(data => {
+                if (!data?.playerList) { return; } //no users
+                for (var x = 0; x < data.playerList.length; x++) {
+                    const player = data.playerList[x];
+                    //console.log(player);
+                    var el = document.createElement('li');
+                    el.textContent = player.clientName;
+                    el.dataset = player.socketID;
+                    el.addEventListener('click', function (e) {
+                        socket.emit('challenge', player.socketID)
+                    });
+                    playerList.appendChild(el);
+                }
+            })
+            .catch(error => { console.error('erorr when calling fetchUsers: ', error); });
+
+        document.getElementById('logout-btn').addEventListener('click', function () {
+            fetch('/logout', {
+                method: 'POST'
+            })
+                .then(response => {
+                    if (response.ok) {
+                        // Redirect to login page after successful logout
+                        window.location = '/';
+                    } else {
+                        alert('Logout failed. Please try again.');
                     }
                 })
-                .catch(error => { console.error('erorr when calling fetchUsers: ', error); });
+                .catch(error => console.error('Error:', error));
+        });
 
-            document.getElementById('logout-btn').addEventListener('click', function () {
-                fetch('/logout', {
-                    method: 'POST'})
-                    .then(response => {
-                        if (response.ok) {
-                            // Redirect to login page after successful logout
-                            window.location = '/';
-                        } else {
-                            alert('Logout failed. Please try again.');
-                        }
-                    })
-                    .catch(error => console.error('Error:', error));
-            });
-
-            socket.on('user list update', function() {
-                fetch('/getUsers')
+        socket.on('user list update', function () {
+            fetch('/getUsers')
                 .then(res => res.json())
                 .then(data => {
                     //reset playerlist
                     playerList.innerHTML = "";
 
-                    for(var x = 0; x < data.playerList.length; x++) {
+                    for (var x = 0; x < data.playerList.length; x++) {
                         const player = data.playerList[x];
                         //console.log(player);
                         var el = document.createElement('li');
                         el.textContent = player.clientName;
                         el.dataset = player.socketID;
-                        el.addEventListener('click', function(e) {
+                        el.addEventListener('click', function (e) {
                             socket.emit('challenge', player.socketID)
                         });
                         playerList.appendChild(el);
                     }
                 })
                 .catch(error => { console.error('erorr when calling fetchUsers: ', error); });
+        });
+
+        socket.on('challenge', function (obj) {
+            var popup = document.getElementById('challenge-popup');
+
+            //display popup
+            popup.style.display = 'block';
+
+            // updated span to show challenger username
+            popup.querySelector('div p span').textContent = obj.challengerUsername;
+
+            // set hidden value to challengerScocketId
+            var hidden = document.getElementById('id');
+            hidden.value = obj.challengerSocketId;
+
+            var acceptBtn = document.getElementById('acceptBtn');
+            var declineBtn = document.getElementById('declineBtn');
+
+            //set up event listeners for buttons on popup
+            acceptBtn.addEventListener('click', function (e) {
+                socket.emit('accept', hidden.value);
             });
-
-            socket.on('challenge', function(obj) {
-                var popup = document.getElementById('challenge-popup');
-
-                //display popup
-                popup.style.display = 'block';
-
-                // updated span to show challenger username
-                popup.querySelector('div p span').textContent = obj.challengerUsername;
-
-                // set hidden value to challengerScocketId
-                var hidden = document.getElementById('id');
-                hidden.value = obj.challengerSocketId;
-
-                var acceptBtn = document.getElementById('acceptBtn');
-                var declineBtn = document.getElementById('declineBtn');
-
-                //set up event listeners for buttons on popup
-                acceptBtn.addEventListener('click', function(e) {
-                    socket.emit('accept', hidden.value);
-                });
-                declineBtn.addEventListener('click', function(e) {
-                    socket.emit('decline', hidden.value);
-                    popup.style.display = 'none';
-                    hidden.value = "";
-                });
+            declineBtn.addEventListener('click', function (e) {
+                socket.emit('decline', hidden.value);
+                popup.style.display = 'none';
+                hidden.value = "";
             });
+        });
 
-            socket.on('accept', function(obj)  {
-                fetch('/createGameRoom', {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({challengerSocketId: obj.challengerSocketId, opponentSocketId: obj.opponentSocketId, opponentId: obj.opponentId})
-                }).then(res=> res.json()).then(data => {
-                    // redirect to new gameroom
-                    window.location = data.url;
-                })
+        socket.on('accept', function (obj) {
+            fetch('/createGameRoom', {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ challengerSocketId: obj.challengerSocketId, opponentSocketId: obj.opponentSocketId, opponentId: obj.opponentId })
+            }).then(res => res.json()).then(data => {
+                // redirect to new gameroom
+                window.location = data.url;
+            })
                 .catch(error => { console.error('erorr when calling createGameRoom: ', error); });
-            });
+        });
 
-            socket.on('gameroom created', function(roomId) {
-                //redirect to gameroom
-                window.location = `/gameroom/${roomId}`;
-            });
+        socket.on('gameroom created', function (roomId) {
+            //redirect to gameroom
+            window.location = `/gameroom/${roomId}`;
+        });
 
-        </script>
-        <script src="../assets/scripts/chat.js"></script>
-    </body>
+    </script>
+    <script src="../assets/scripts/chat.js"></script>
+</body>
+
 </html>

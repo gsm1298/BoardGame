@@ -2,7 +2,7 @@
 // possible make ship move when dragged from container or show its being dragged TODO
 // no preview of where you are placing DONE
 // ship does not actually move when dragged TODO
-// test server validating TODO
+// test server validating DONE -kind of
 // possibly create gameboard object in server/business DONE
 // possibly create ships object in server/business TODO
 // possibly create ship object in server/business TODO
@@ -15,7 +15,7 @@
 // test chat DONE
 // test room creation again DONE
 // make chat logs in DB DOEN
-// add sanitization middleware to snitize all input TODO
+// add sanitization middleware to snitize all input DONE
 // add validation middleware to validate that input is what is exppected TODO
 /* add auth middleware to make sure the user is authenticated before allow access 
   to endpoints other than login or registration DONE*/
