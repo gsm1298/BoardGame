@@ -55,7 +55,7 @@ body {
     margin: 0;
     padding: 0;
     text-align: left;
-    overflow-y: scroll;
+    overflow-y: auto;
 }
 
 #playerList>li {
