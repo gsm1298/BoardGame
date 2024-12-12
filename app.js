@@ -588,20 +588,24 @@ io.on('connection', (socket) => {
         if (socket.request.session.room_id == roomID) {
             socket.join(roomID);
             console.log(`${socket.request.session.user.username} joined roomID: `, roomID);
-            io.to(roomID).emit('user list update')
+            io.to(roomID).emit('user list update');
         } else {
             //TODO look back at
             console.error('error', `mismatch gameroom ids for ${socket.request.session.user.username}`);
             socket.leave(parseInt(socket.request.session.room_id)); //leave last known room
             console.log(`${socket.request.session.user.username} left roomID: `, socket.request.session.room_id);
-            io.to(socket.request.session.room_id).emit('user list update')
+            io.to(socket.request.session.room_id).emit('user list update');
             socket.join(roomID); //join correct room
             console.log(`${socket.request.session.user.username} joined roomID: `, roomID);
-            io.to(roomID).emit('user list update')
+            io.to(roomID).emit('user list update');
             socket.request.session.room_id = roomID; //set correct room id
         }
         //console.log(`Current room ID for ${socket.request.session.user.username}`, roomID);
     });
+
+    socket.on("disconnecting", () => {
+        io.emit('user list update');
+      });
 
     socket.on('challenge', (socketID) => {
         const clientSocket = io.sockets.sockets.get(socketID);
