@@ -112,8 +112,8 @@ function handleEnemyClick(event) {
 
             var fade = document.createElementNS("http://www.w3.org/2000/svg", "animate");
             fade.setAttribute("attributeName", "fill");
-            fade.setAttribute("values",`${data.hit ? "#87cefa;red" : "#87cefa;lightblue"}`);
-            fade.setAttribute("dur","1.5s");
+            fade.setAttribute("values", `${data.hit ? "#87cefa;red" : "#87cefa;lightblue"}`);
+            fade.setAttribute("dur", "1s");
             cell.appendChild(fade);
             fade.beginElement();
             //cell.classList.add(data.hit ? "hit" : "miss");
@@ -134,8 +134,26 @@ function placeShips(shipsArr, board) {
 
 // Place the attckas on the board
 function placeAttacks(attcksArr, board) {
-    for (var i = 0; i < attcksArr.length; i++) {
+    for (var i = 0; i < attcksArr.length - 1; i++) {
         const cell = board.querySelector(`[data-id="${attcksArr[i].index}"`);
+        if (attcksArr[i].hit) { cell.setAttribute("class", "cell hit"); }
+        else { cell.setAttribute("class", "cell miss"); }
+        cell.removeEventListener("click", handleEnemyClick);
+    }
+    //animate the last attack
+    if (attcksArr.length > 0) {
+        const cell = board.querySelector(`[data-id="${attcksArr[attcksArr.length - 1].index}"`);
+
+        //check if the cell is already set
+        if (cell.classList.contains('hit') || cell.classList.contains('miss')) { return; }
+        //if not set continue
+        var fade = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+        fade.setAttribute("attributeName", "fill");
+        fade.setAttribute("values", `${attcksArr[attcksArr.length - 1].hit ? "#87cefa;red" : "#87cefa;lightblue"}`);
+        fade.setAttribute("dur", "1s");
+        cell.appendChild(fade);
+        fade.beginElement();
+
         if (attcksArr[i].hit) { cell.setAttribute("class", "cell hit"); }
         else { cell.setAttribute("class", "cell miss"); }
         cell.removeEventListener("click", handleEnemyClick);
