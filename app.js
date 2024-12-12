@@ -84,12 +84,8 @@ app.post('/login', (req, res) => {
     const username = req.body.username;
     const password = req.body.password;
     const response_key = req.body.captchaResponse;
-    const response_key2 = req.body["g-recaptcha-response"];
+    //const response_key = req.body["g-recaptcha-response"];
     const secret_key = process.env.recaptchaSecret;
-
-    console.log(response_key);
-    console.log();
-    console.log(response_key2);
 
     const url =
         `https://www.google.com/recaptcha/api/siteverify?secret=${secret_key}&response=${response_key}`;
