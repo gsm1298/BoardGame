@@ -108,7 +108,15 @@ function handleEnemyClick(event) {
         })
         .then(data => {
             cell.removeEventListener("click", handleEnemyClick);
-            cell.classList.add(data.hit ? "hit" : "miss");
+            // create animation for attack indication
+
+            var fade = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+            fade.setAttribute("attributeName", "fill");
+            fade.setAttribute("values",`${data.hit ? "#87cefa;red" : "#87cefa;lightblue"}`);
+            fade.setAttribute("dur","1.5s");
+            cell.appendChild(fade);
+            fade.beginElement();
+            //cell.classList.add(data.hit ? "hit" : "miss");
         })
         .catch(err => console.error(err));
 }
