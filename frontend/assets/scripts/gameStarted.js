@@ -108,14 +108,71 @@ function handleEnemyClick(event) {
         })
         .then(data => {
             cell.removeEventListener("click", handleEnemyClick);
-            // create animation for attack indication
+            // Create animation for attack indication
+            const projectile = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
-            var fade = document.createElementNS("http://www.w3.org/2000/svg", "animate");
-            fade.setAttribute("attributeName", "fill");
-            fade.setAttribute("values", `${data.hit ? "#87cefa;red" : "#87cefa;lightblue"}`);
-            fade.setAttribute("dur", "1s");
-            cell.appendChild(fade);
-            fade.beginElement();
+            // Validate and set initial position
+            const x = cell.x?.baseVal?.value
+            const y = cell.y?.baseVal?.value
+            projectile.setAttribute("style", `fill: black;`);
+            // projectile.setAttribute("x", `${x + CELL_SIZE / 2}`);
+            // projectile.setAttribute("y",`${BOARD_SIZE * CELL_SIZE - y - 60}`);
+
+            // Group to hold the projectile visuals
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+            // Create the rectangle part of the projectile
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", "0.53");
+            rect.setAttribute("y", "0.5");
+            rect.setAttribute("width", "7.6");
+            rect.setAttribute("height", "14.98");
+            g.appendChild(rect);
+
+            // Create the path part of the projectile
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute(
+                "d",
+                "M.56,15.87c-.4,1.23,1.21,3.9,3.53,4.05,2.61.17,4.4-2.96,3.98-4.21-.62-1.87-6.88-1.8-7.51.16Z"
+            );
+            g.appendChild(path);
+
+            projectile.appendChild(g);
+
+            // Create the fall animation
+            const fall = document.createElementNS("http://www.w3.org/2000/svg", "animateTransform");
+            fall.setAttribute("attributeName", "transform");
+            fall.setAttribute("attributeType", "XML");
+            fall.setAttribute("type", "translate");
+            console.log(BOARD_SIZE * CELL_SIZE - y - 60)
+            fall.setAttribute("from", `${x + CELL_SIZE / 2}, ${BOARD_SIZE * CELL_SIZE - y - CELL_SIZE * 2}`);
+            fall.setAttribute("to", `${x + CELL_SIZE / 2}, ${y}`);
+            fall.setAttribute("dur", "2");
+            projectile.appendChild(fall);
+            enemyBoard.appendChild(projectile);
+            fall.beginElement();
+            setTimeout( () => afterPro(), 2000);
+            //fall.addEventListener("onend", () => afterPro()); // Trigger cleanup after animation ends
+
+            // Function to handle animation end
+            function afterPro() {
+                console.log("Projectile animation ended");
+
+
+                // Remove the projectile element
+                projectile.remove();
+
+                // Create fade animation for the target cell
+                const fade = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+                fade.setAttribute("attributeName", "fill");
+                fade.setAttribute("values", `${data.hit ? "#87cefa;red" : "#87cefa;lightblue"}`);
+                fade.setAttribute("dur", "1.5s");
+
+                // Append fade animation to the cell and start
+                cell.appendChild(fade);
+                fade.beginElement();
+            }
+
             //cell.classList.add(data.hit ? "hit" : "miss");
         })
         .catch(err => console.error(err));
