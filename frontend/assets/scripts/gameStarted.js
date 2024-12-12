@@ -144,8 +144,7 @@ function handleEnemyClick(event) {
             fall.setAttribute("attributeName", "transform");
             fall.setAttribute("attributeType", "XML");
             fall.setAttribute("type", "translate");
-            console.log(BOARD_SIZE * CELL_SIZE - y - 60)
-            fall.setAttribute("from", `${x + CELL_SIZE / 2}, ${BOARD_SIZE * CELL_SIZE - y - CELL_SIZE * 2}`);
+            fall.setAttribute("from", `${x + CELL_SIZE / 2}, -60`);
             fall.setAttribute("to", `${x + CELL_SIZE / 2}, ${y}`);
             fall.setAttribute("dur", "2");
             projectile.appendChild(fall);
